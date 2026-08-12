@@ -8,7 +8,12 @@ import type {
 } from '../types/ImportedDataset';
 
 import type {
+  ReconciliationHistoryEntry,
+} from '../types/ReconciliationHistory';
+
+import type {
   ReconciliationResult,
+  ReconciliationSummary,
 } from '../types/ReconciliationResult';
 
 export interface PersistedWorkspace {
@@ -18,6 +23,7 @@ export interface PersistedWorkspace {
   crmData: ImportedDataset | null;
   reconciliationResult: ReconciliationResult | null;
   reviewedExceptionKeys: string[];
+  reconciliationHistory: ReconciliationHistoryEntry[];
 }
 
 export interface WorkspacePersistenceResult {
@@ -27,6 +33,16 @@ export interface WorkspacePersistenceResult {
 }
 
 interface WorkspaceStateToPersist {
+  erpData: ImportedDataset | null;
+  crmData: ImportedDataset | null;
+  reconciliationResult: ReconciliationResult | null;
+  reviewedExceptionKeys: string[];
+  reconciliationHistory: ReconciliationHistoryEntry[];
+}
+
+interface LegacyPersistedWorkspaceV1 {
+  version: 1;
+  savedAt: string;
   erpData: ImportedDataset | null;
   crmData: ImportedDataset | null;
   reconciliationResult: ReconciliationResult | null;
@@ -49,12 +65,16 @@ export function loadWorkspace(): PersistedWorkspace | null {
 
     const parsedValue: unknown = JSON.parse(rawValue);
 
-    if (!isPersistedWorkspace(parsedValue)) {
-      window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-      return null;
+    if (isPersistedWorkspace(parsedValue)) {
+      return parsedValue;
     }
 
-    return parsedValue;
+    if (isLegacyPersistedWorkspaceV1(parsedValue)) {
+      return migrateLegacyWorkspace(parsedValue);
+    }
+
+    window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    return null;
   } catch {
     safelyRemoveWorkspace();
     return null;
@@ -77,7 +97,8 @@ export function saveWorkspace(
     state.erpData ||
       state.crmData ||
       state.reconciliationResult ||
-      state.reviewedExceptionKeys.length > 0
+      state.reviewedExceptionKeys.length > 0 ||
+      state.reconciliationHistory.length > 0
   );
 
   if (!hasPersistableData) {
@@ -108,6 +129,7 @@ export function saveWorkspace(
     crmData: state.crmData,
     reconciliationResult: state.reconciliationResult,
     reviewedExceptionKeys: state.reviewedExceptionKeys,
+    reconciliationHistory: state.reconciliationHistory,
   };
 
   try {
@@ -141,6 +163,20 @@ export function clearPersistedWorkspace(): boolean {
   } catch {
     return false;
   }
+}
+
+function migrateLegacyWorkspace(
+  workspace: LegacyPersistedWorkspaceV1
+): PersistedWorkspace {
+  return {
+    version: WORKSPACE_STORAGE_VERSION,
+    savedAt: workspace.savedAt,
+    erpData: workspace.erpData,
+    crmData: workspace.crmData,
+    reconciliationResult: workspace.reconciliationResult,
+    reviewedExceptionKeys: workspace.reviewedExceptionKeys,
+    reconciliationHistory: [],
+  };
 }
 
 function safelyRemoveWorkspace() {
@@ -179,6 +215,24 @@ function isPersistedWorkspace(
 
   return (
     value.version === WORKSPACE_STORAGE_VERSION &&
+    typeof value.savedAt === 'string' &&
+    isImportedDatasetOrNull(value.erpData) &&
+    isImportedDatasetOrNull(value.crmData) &&
+    isReconciliationResultOrNull(value.reconciliationResult) &&
+    isStringArray(value.reviewedExceptionKeys) &&
+    isReconciliationHistoryArray(value.reconciliationHistory)
+  );
+}
+
+function isLegacyPersistedWorkspaceV1(
+  value: unknown
+): value is LegacyPersistedWorkspaceV1 {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    value.version === 1 &&
     typeof value.savedAt === 'string' &&
     isImportedDatasetOrNull(value.erpData) &&
     isImportedDatasetOrNull(value.crmData) &&
@@ -236,8 +290,73 @@ function isReconciliationResult(
     Array.isArray(value.differences) &&
     Array.isArray(value.onlyERP) &&
     Array.isArray(value.onlyCRM) &&
-    isObject(value.summary) &&
+    isReconciliationSummary(value.summary) &&
     typeof value.executedAt === 'string'
+  );
+}
+
+function isReconciliationHistoryArray(
+  value: unknown
+): value is ReconciliationHistoryEntry[] {
+  return (
+    Array.isArray(value) &&
+    value.every((entry) => isReconciliationHistoryEntry(entry))
+  );
+}
+
+function isReconciliationHistoryEntry(
+  value: unknown
+): value is ReconciliationHistoryEntry {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.executedAt === 'string' &&
+    isHistoryDatasetSnapshot(value.erpDataset) &&
+    isHistoryDatasetSnapshot(value.crmDataset) &&
+    isReconciliationSummary(value.summary) &&
+    typeof value.exceptionCount === 'number'
+  );
+}
+
+function isHistoryDatasetSnapshot(value: unknown): boolean {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.fileName === 'string' &&
+    typeof value.fileSize === 'number' &&
+    typeof value.totalRows === 'number' &&
+    typeof value.cleanRows === 'number' &&
+    typeof value.rowsWithIssues === 'number' &&
+    typeof value.qualityScore === 'number' &&
+    typeof value.blockingIssues === 'number' &&
+    typeof value.warnings === 'number' &&
+    typeof value.duplicateIds === 'number'
+  );
+}
+
+function isReconciliationSummary(
+  value: unknown
+): value is ReconciliationSummary {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.totalERP === 'number' &&
+    typeof value.totalCRM === 'number' &&
+    typeof value.totalUnique === 'number' &&
+    typeof value.matched === 'number' &&
+    typeof value.exactMatched === 'number' &&
+    typeof value.normalizedMatched === 'number' &&
+    typeof value.differences === 'number' &&
+    typeof value.onlyERP === 'number' &&
+    typeof value.onlyCRM === 'number' &&
+    typeof value.matchRate === 'number'
   );
 }
 

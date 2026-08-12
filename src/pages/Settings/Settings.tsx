@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Database,
   HardDrive,
+  History,
   Moon,
   Sun,
   Trash2,
@@ -28,11 +29,13 @@ export default function Settings() {
     erpData,
     crmData,
     reconciliationResult,
+    reconciliationHistory,
     persistenceStatus,
     persistenceError,
     lastSavedAt,
     restoredFromStorage,
     clearData,
+    clearHistory,
   } = useReconciliation();
 
   const {
@@ -46,13 +49,25 @@ export default function Settings() {
       reconciliationResult
   );
 
+  const hasHistory = reconciliationHistory.length > 0;
+
   const handleClearWorkspace = () => {
     const shouldClear = window.confirm(
-      'Clear the current ERP/CRM workspace, reconciliation result, review progress and persisted browser data?'
+      'Clear the current ERP/CRM workspace, latest reconciliation and review progress? Reconciliation history will be preserved.'
     );
 
     if (shouldClear) {
       clearData();
+    }
+  };
+
+  const handleClearHistory = () => {
+    const shouldClear = window.confirm(
+      'Delete all locally stored reconciliation history? The current workspace will remain available.'
+    );
+
+    if (shouldClear) {
+      clearHistory();
     }
   };
 
@@ -73,7 +88,7 @@ export default function Settings() {
             fontSize: '0.86rem',
           }}
         >
-          Manage appearance and local workspace persistence for this browser.
+          Manage appearance, local workspace persistence and reconciliation history for this browser.
         </Typography>
       </Box>
 
@@ -179,10 +194,10 @@ export default function Settings() {
                     mt: 0.5,
                     color: 'text.secondary',
                     fontSize: '0.82rem',
-                    maxWidth: 760,
+                    maxWidth: 780,
                   }}
                 >
-                  ERP/CRM imports, the latest reconciliation and exception review progress are automatically saved in this browser.
+                  ERP/CRM imports, the latest reconciliation, exception review progress and compact reconciliation history are automatically saved in this browser.
                 </Typography>
               </Box>
 
@@ -219,7 +234,8 @@ export default function Settings() {
                 display: 'grid',
                 gridTemplateColumns: {
                   xs: '1fr',
-                  md: 'repeat(4, minmax(0, 1fr))',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                  xl: 'repeat(5, minmax(0, 1fr))',
                 },
                 gap: 1.5,
               }}
@@ -244,6 +260,12 @@ export default function Settings() {
                     : 'Not available'
                 }
                 icon={<HardDrive size={17} />}
+              />
+
+              <PersistenceMetric
+                label="History Runs"
+                value={String(reconciliationHistory.length)}
+                icon={<History size={17} />}
               />
 
               <PersistenceMetric
@@ -280,7 +302,7 @@ export default function Settings() {
                   lineHeight: 1.55,
                 }}
               >
-                This V0.1.4 frontend persists the current workspace with browser localStorage. It is intentionally device-local and is not a replacement for the PostgreSQL-backed persistence planned for V0.2.
+                V0.1.5 persists the active workspace plus compact historical reconciliation snapshots with browser localStorage. The history intentionally stores summary-level information rather than duplicating every raw record. Audit-grade history will move to PostgreSQL in V0.2.
               </Typography>
 
               {restoredFromStorage && (
@@ -292,7 +314,7 @@ export default function Settings() {
                     fontWeight: 650,
                   }}
                 >
-                  This session restored a previously saved workspace.
+                  This session restored previously saved browser data.
                 </Typography>
               )}
 
@@ -315,8 +337,20 @@ export default function Settings() {
                 mt: 2.5,
                 display: 'flex',
                 justifyContent: 'flex-end',
+                gap: 1.25,
+                flexWrap: 'wrap',
               }}
             >
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<History size={17} />}
+                disabled={!hasHistory}
+                onClick={handleClearHistory}
+              >
+                Clear history
+              </Button>
+
               <Button
                 variant="outlined"
                 color="error"
@@ -324,7 +358,7 @@ export default function Settings() {
                 disabled={!hasWorkspaceData}
                 onClick={handleClearWorkspace}
               >
-                Clear workspace data
+                Clear current workspace
               </Button>
             </Box>
           </CardContent>

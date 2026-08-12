@@ -14,6 +14,7 @@ import {
   GitCompareArrows,
   TriangleAlert,
   ChartNoAxesCombined,
+  History,
   Settings,
   Database,
 } from 'lucide-react';
@@ -47,6 +48,11 @@ const menuItems = [
     label: 'Reports',
     path: '/reports',
     icon: ChartNoAxesCombined,
+  },
+  {
+    label: 'History',
+    path: '/history',
+    icon: History,
   },
   {
     label: 'Settings',

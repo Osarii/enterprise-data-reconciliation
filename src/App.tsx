@@ -10,6 +10,7 @@ import Imports from './pages/Imports/Imports';
 import Reconciliation from './pages/Reconciliation/Reconciliation';
 import Exceptions from './pages/Exceptions/Exceptions';
 import Reports from './pages/Reports/Reports';
+import History from './pages/History/History';
 import Settings from './pages/Settings/Settings';
 
 function App() {
@@ -43,6 +44,11 @@ function App() {
         <Route
           path="/reports"
           element={<Reports />}
+        />
+
+        <Route
+          path="/history"
+          element={<History />}
         />
 
         <Route

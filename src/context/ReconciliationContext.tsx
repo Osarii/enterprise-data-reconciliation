@@ -2,14 +2,21 @@ import {
   createContext,
   useContext,
   useEffect,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
 
 import {
+  RECONCILIATION_HISTORY_LIMIT,
+} from '../config/storageConfig';
+
+import {
   reconcileData,
 } from '../utils/reconcileData';
+
+import {
+  createReconciliationHistoryEntry,
+} from '../utils/reconciliationHistory';
 
 import type {
   ReconciliationResult,
@@ -18,6 +25,10 @@ import type {
 import type {
   ImportedDataset,
 } from '../types/ImportedDataset';
+
+import type {
+  ReconciliationHistoryEntry,
+} from '../types/ReconciliationHistory';
 
 export type {
   ImportedDataset,
@@ -28,7 +39,6 @@ import {
 } from '../utils/dataQuality';
 
 import {
-  clearPersistedWorkspace,
   loadWorkspace,
   saveWorkspace,
 } from '../utils/workspacePersistence';
@@ -52,6 +62,9 @@ interface ReconciliationContextType {
 
   reviewedExceptionKeys:
     string[];
+
+  reconciliationHistory:
+    ReconciliationHistoryEntry[];
 
   persistenceStatus: WorkspacePersistenceStatus;
 
@@ -90,6 +103,12 @@ interface ReconciliationContextType {
     keys: string[],
     reviewed: boolean
   ) => void;
+
+  deleteHistoryEntry: (
+    entryId: string
+  ) => void;
+
+  clearHistory: () => void;
 
   clearData: () => void;
 }
@@ -149,6 +168,13 @@ export function ReconciliationProvider({
   );
 
   const [
+    reconciliationHistory,
+    setReconciliationHistory,
+  ] = useState<ReconciliationHistoryEntry[]>(
+    restoredWorkspace?.reconciliationHistory ?? []
+  );
+
+  const [
     persistenceStatus,
     setPersistenceStatus,
   ] = useState<WorkspacePersistenceStatus>('saved');
@@ -165,19 +191,13 @@ export function ReconciliationProvider({
     restoredWorkspace?.savedAt ?? null
   );
 
-  const skipNextPersistenceRef = useRef(false);
-
   useEffect(() => {
-    if (skipNextPersistenceRef.current) {
-      skipNextPersistenceRef.current = false;
-      return;
-    }
-
     const persistenceResult = saveWorkspace({
       erpData: erpDataState,
       crmData: crmDataState,
       reconciliationResult,
       reviewedExceptionKeys,
+      reconciliationHistory,
     });
 
     if (persistenceResult.success) {
@@ -194,6 +214,7 @@ export function ReconciliationProvider({
     crmDataState,
     reconciliationResult,
     reviewedExceptionKeys,
+    reconciliationHistory,
   ]);
 
   const invalidateReconciliation =
@@ -267,8 +288,26 @@ export function ReconciliationProvider({
           crmDataState.records
         );
 
+      const historyEntry =
+        createReconciliationHistoryEntry(
+          result,
+          erpDataState,
+          crmDataState
+        );
+
       setReconciliationResult(
         result
+      );
+
+      setReconciliationHistory(
+        (currentHistory) =>
+          [
+            historyEntry,
+            ...currentHistory,
+          ].slice(
+            0,
+            RECONCILIATION_HISTORY_LIMIT
+          )
       );
 
       /*
@@ -339,27 +378,27 @@ export function ReconciliationProvider({
     );
   };
 
-  const clearData = () => {
-    skipNextPersistenceRef.current = true;
+  const deleteHistoryEntry = (
+    entryId: string
+  ) => {
+    setReconciliationHistory(
+      (currentHistory) =>
+        currentHistory.filter(
+          (entry) =>
+            entry.id !== entryId
+        )
+    );
+  };
 
+  const clearHistory = () => {
+    setReconciliationHistory([]);
+  };
+
+  const clearData = () => {
     setErpDataState(null);
     setCrmDataState(null);
     setReconciliationResult(null);
     setReviewedExceptionKeys([]);
-
-    const cleared = clearPersistedWorkspace();
-
-    if (cleared) {
-      setPersistenceStatus('saved');
-      setPersistenceError(null);
-      setLastSavedAt(null);
-      return;
-    }
-
-    setPersistenceStatus('error');
-    setPersistenceError(
-      'The in-memory workspace was cleared, but browser storage could not be cleared.'
-    );
   };
 
   return (
@@ -374,6 +413,8 @@ export function ReconciliationProvider({
         reconciliationResult,
 
         reviewedExceptionKeys,
+
+        reconciliationHistory,
 
         persistenceStatus,
 
@@ -393,6 +434,10 @@ export function ReconciliationProvider({
         setExceptionReviewed,
 
         setExceptionsReviewed,
+
+        deleteHistoryEntry,
+
+        clearHistory,
 
         clearData,
       }}
