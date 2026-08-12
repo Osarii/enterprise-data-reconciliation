@@ -1,4 +1,8 @@
-import { useState, type DragEvent } from 'react';
+import {
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from 'react';
 
 import {
   Alert,
@@ -8,7 +12,7 @@ import {
   CardContent,
   Chip,
   Divider,
-  Stack,
+  LinearProgress,
   Table,
   TableBody,
   TableCell,
@@ -18,483 +22,1105 @@ import {
 } from '@mui/material';
 
 import {
+  AlertTriangle,
   CheckCircle2,
+  Copy,
+  Database,
   FileSpreadsheet,
-  Upload,
-  XCircle,
+  ShieldCheck,
+  Trash2,
+  UploadCloud,
 } from 'lucide-react';
 
-import { parseCsv } from '../../utils/parseCsv';
+import {
+  parseCsv,
+} from '../../utils/parseCsv';
 
 import {
   useReconciliation,
   type ImportedDataset,
 } from '../../context/ReconciliationContext';
 
-type SourceType = 'ERP' | 'CRM';
+const MAX_FILE_SIZE =
+  10 * 1024 * 1024;
+
+type DatasetTarget =
+  | 'erp'
+  | 'crm';
 
 export default function Imports() {
   const {
     erpData,
     crmData,
+
     setErpData,
     setCrmData,
   } = useReconciliation();
 
-  const handleFile = async (
+  const [
+    erpUploadError,
+    setErpUploadError,
+  ] = useState('');
+
+  const [
+    crmUploadError,
+    setCrmUploadError,
+  ] = useState('');
+
+  const processFile = async (
     file: File,
-    source: SourceType
+    target: DatasetTarget
   ) => {
-    const extension = file.name
-      .split('.')
-      .pop()
-      ?.toLowerCase();
+    const setUploadError =
+      target === 'erp'
+        ? setErpUploadError
+        : setCrmUploadError;
 
-    // Validate file extension
-    if (extension !== 'csv') {
-      const invalidFile: ImportedDataset = {
-        fileName: file.name,
-        fileSize: file.size,
-        records: [],
-        errors: ['Only CSV files are currently supported.'],
-        totalRows: 0,
-      };
+    setUploadError('');
 
-      if (source === 'ERP') {
-        setErpData(invalidFile);
-      } else {
-        setCrmData(invalidFile);
-      }
+    if (
+      !file.name
+        .toLowerCase()
+        .endsWith('.csv')
+    ) {
+      setUploadError(
+        'Only CSV files are supported.'
+      );
 
       return;
     }
 
-    // Maximum file size: 10 MB
-    const maxSize = 10 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      const invalidFile: ImportedDataset = {
-        fileName: file.name,
-        fileSize: file.size,
-        records: [],
-        errors: ['The file exceeds the 10 MB size limit.'],
-        totalRows: 0,
-      };
-
-      if (source === 'ERP') {
-        setErpData(invalidFile);
-      } else {
-        setCrmData(invalidFile);
-      }
+    if (
+      file.size >
+      MAX_FILE_SIZE
+    ) {
+      setUploadError(
+        'The file exceeds the 10 MB limit.'
+      );
 
       return;
     }
 
-    // Parse and validate CSV
-    const result = await parseCsv(file);
+    try {
+      const result =
+        await parseCsv(file);
 
-    const information: ImportedDataset = {
-      fileName: file.name,
-      fileSize: file.size,
-      records: result.records,
-      errors: result.errors,
-      totalRows: result.totalRows,
-    };
+      const dataset:
+        ImportedDataset = {
+          fileName:
+            file.name,
 
-    if (source === 'ERP') {
-      setErpData(information);
-    } else {
-      setCrmData(information);
+          fileSize:
+            file.size,
+
+          records:
+            result.records,
+
+          errors:
+            result.errors,
+
+          warnings:
+            result.warnings,
+
+          duplicateIds:
+            result.duplicateIds,
+
+          totalRows:
+            result.totalRows,
+
+          validRows:
+            result.validRows,
+
+          invalidRows:
+            result.invalidRows,
+
+          qualityScore:
+            result.qualityScore,
+        };
+
+      if (target === 'erp') {
+        setErpData(dataset);
+      } else {
+        setCrmData(dataset);
+      }
+    } catch {
+      setUploadError(
+        'The CSV file could not be processed.'
+      );
     }
   };
 
-  const bothDatasetsReady =
+  const handleFileChange = (
+    event:
+      ChangeEvent<HTMLInputElement>,
+    target: DatasetTarget
+  ) => {
+    const file =
+      event.target.files?.[0];
+
+    if (file) {
+      void processFile(
+        file,
+        target
+      );
+    }
+
+    event.target.value = '';
+  };
+
+  const handleDrop = (
+    event:
+      DragEvent<HTMLDivElement>,
+    target: DatasetTarget
+  ) => {
+    event.preventDefault();
+
+    const file =
+      event.dataTransfer
+        .files?.[0];
+
+    if (file) {
+      void processFile(
+        file,
+        target
+      );
+    }
+  };
+
+  const removeDataset = (
+    target: DatasetTarget
+  ) => {
+    if (target === 'erp') {
+      setErpData(null);
+
+      setErpUploadError('');
+
+      return;
+    }
+
+    setCrmData(null);
+
+    setCrmUploadError('');
+  };
+
+  const bothLoaded =
     erpData !== null &&
-    crmData !== null &&
-    erpData.errors.length === 0 &&
-    crmData.errors.length === 0 &&
-    erpData.records.length > 0 &&
-    crmData.records.length > 0;
+    crmData !== null;
+
+  const bothValid =
+    bothLoaded &&
+    erpData.errors.length ===
+      0 &&
+    crmData.errors.length ===
+      0;
 
   return (
     <Box>
-      {/* Page Header */}
-      <Box sx={{ mb: 4 }}>
+      {/* HEADER */}
+      <Box
+        sx={{
+          mb: 4,
+        }}
+      >
         <Typography
           variant="h4"
           sx={{
             fontWeight: 700,
-            letterSpacing: '-0.03em',
+
+            letterSpacing:
+              '-0.03em',
           }}
         >
-          Data Imports
+          Imports
         </Typography>
 
         <Typography
           sx={{
-            color: 'text.secondary',
+            color:
+              'text.secondary',
+
             mt: 1,
-            fontSize: '0.95rem',
+
+            fontSize:
+              '0.95rem',
           }}
         >
-          Import and validate ERP and CRM datasets before running a
+          Upload and validate ERP
+          and CRM datasets before
           reconciliation.
         </Typography>
       </Box>
 
-      {/* Import Cards */}
+      {/* GENERAL INFO */}
+      <Alert
+        severity="info"
+        sx={{
+          mb: 3,
+
+          borderRadius:
+            '14px',
+        }}
+      >
+        Required columns:
+        <strong>
+          {' '}
+          id, cliente, monto,
+          estado
+        </strong>
+        . Duplicate IDs and invalid
+        rows will block
+        reconciliation.
+      </Alert>
+
+      {/* IMPORT CARDS */}
       <Box
         sx={{
           display: 'grid',
+
           gridTemplateColumns: {
             xs: '1fr',
-            lg: '1fr 1fr',
+            xl: '1fr 1fr',
           },
+
           gap: 3,
         }}
       >
         <ImportCard
-          title="ERP Data"
-          description="Upload the dataset exported from the ERP system."
-          source="ERP"
-          data={erpData}
-          onFile={handleFile}
-          onRemove={() => setErpData(null)}
+          title="ERP Dataset"
+          description="Upload the source dataset exported from the ERP system."
+          dataset={erpData}
+          uploadError={
+            erpUploadError
+          }
+          onFileChange={(
+            event
+          ) =>
+            handleFileChange(
+              event,
+              'erp'
+            )
+          }
+          onDrop={(event) =>
+            handleDrop(
+              event,
+              'erp'
+            )
+          }
+          onRemove={() =>
+            removeDataset(
+              'erp'
+            )
+          }
         />
 
         <ImportCard
-          title="CRM Data"
-          description="Upload the dataset exported from the CRM system."
-          source="CRM"
-          data={crmData}
-          onFile={handleFile}
-          onRemove={() => setCrmData(null)}
+          title="CRM Dataset"
+          description="Upload the comparison dataset exported from the CRM system."
+          dataset={crmData}
+          uploadError={
+            crmUploadError
+          }
+          onFileChange={(
+            event
+          ) =>
+            handleFileChange(
+              event,
+              'crm'
+            )
+          }
+          onDrop={(event) =>
+            handleDrop(
+              event,
+              'crm'
+            )
+          }
+          onRemove={() =>
+            removeDataset(
+              'crm'
+            )
+          }
         />
       </Box>
 
-      {/* Ready Status */}
-      {bothDatasetsReady && (
+      {/* GLOBAL RESULT */}
+      {bothValid && (
         <Alert
           severity="success"
           sx={{
             mt: 3,
-            borderRadius: '14px',
+
+            borderRadius:
+              '14px',
           }}
         >
-          ERP and CRM datasets are valid and ready for reconciliation.
+          ERP and CRM datasets
+          passed validation and are
+          ready for reconciliation.
         </Alert>
       )}
+
+      {bothLoaded &&
+        !bothValid && (
+          <Alert
+            severity="warning"
+            sx={{
+              mt: 3,
+
+              borderRadius:
+                '14px',
+            }}
+          >
+            Reconciliation is
+            currently blocked.
+            Resolve all blocking
+            validation issues before
+            continuing.
+          </Alert>
+        )}
     </Box>
   );
 }
 
 interface ImportCardProps {
   title: string;
+
   description: string;
-  source: SourceType;
-  data: ImportedDataset | null;
-  onFile: (
-    file: File,
-    source: SourceType
+
+  dataset:
+    | ImportedDataset
+    | null;
+
+  uploadError: string;
+
+  onFileChange: (
+    event:
+      ChangeEvent<HTMLInputElement>
   ) => void;
+
+  onDrop: (
+    event:
+      DragEvent<HTMLDivElement>
+  ) => void;
+
   onRemove: () => void;
 }
 
 function ImportCard({
   title,
   description,
-  source,
-  data,
-  onFile,
+  dataset,
+  uploadError,
+  onFileChange,
+  onDrop,
   onRemove,
 }: ImportCardProps) {
-  const [isDragging, setIsDragging] = useState(false);
+  const [
+    dragging,
+    setDragging,
+  ] = useState(false);
 
-  const handleDrop = (
-    event: DragEvent<HTMLDivElement>
-  ) => {
-    event.preventDefault();
-
-    setIsDragging(false);
-
-    const file = event.dataTransfer.files?.[0];
-
-    if (file) {
-      onFile(file, source);
-    }
-  };
+  const isValid =
+    dataset !== null &&
+    dataset.errors.length === 0;
 
   return (
     <Card>
       <CardContent
         sx={{
-          p: '28px !important',
+          p: '26px !important',
         }}
       >
-        {/* Card Header */}
+        {/* CARD HEADER */}
         <Box
           sx={{
             display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            mb: 1,
+
+            justifyContent:
+              'space-between',
+
+            alignItems:
+              'flex-start',
+
+            gap: 2,
+
+            mb: 2.5,
           }}
         >
           <Box
             sx={{
-              width: 38,
-              height: 38,
-              borderRadius: '12px',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgba(0,113,227,0.08)',
-              color: '#0071E3',
+              gap: 1.5,
             }}
           >
-            <FileSpreadsheet size={20} />
+            <Box
+              sx={{
+                width: 42,
+                height: 42,
+
+                borderRadius:
+                  '13px',
+
+                backgroundColor:
+                  'rgba(0,113,227,0.08)',
+
+                color:
+                  '#0071E3',
+
+                display: 'flex',
+
+                alignItems:
+                  'center',
+
+                justifyContent:
+                  'center',
+
+                flexShrink: 0,
+              }}
+            >
+              <Database
+                size={20}
+              />
+            </Box>
+
+            <Box>
+              <Typography
+                sx={{
+                  fontSize:
+                    '1rem',
+
+                  fontWeight: 600,
+                }}
+              >
+                {title}
+              </Typography>
+
+              <Typography
+                sx={{
+                  color:
+                    'text.secondary',
+
+                  fontSize:
+                    '0.77rem',
+
+                  mt: 0.35,
+
+                  lineHeight:
+                    1.45,
+                }}
+              >
+                {description}
+              </Typography>
+            </Box>
           </Box>
 
-          <Typography
-            variant="h6"
-            sx={{
-              fontWeight: 600,
-            }}
-          >
-            {title}
-          </Typography>
+          {dataset && (
+            <Button
+              size="small"
+              color="error"
+              startIcon={
+                <Trash2
+                  size={15}
+                />
+              }
+              onClick={
+                onRemove
+              }
+            >
+              Remove
+            </Button>
+          )}
         </Box>
 
-        <Typography
-          sx={{
-            color: 'text.secondary',
-            fontSize: '0.85rem',
-            mb: 3,
-          }}
-        >
-          {description}
-        </Typography>
-
-        {/* Drag & Drop Area */}
+        {/* DROP AREA */}
         <Box
-          onDragOver={(event) => {
+          onDragOver={(
+            event
+          ) => {
             event.preventDefault();
-            setIsDragging(true);
+
+            setDragging(true);
           }}
-          onDragLeave={() => {
-            setIsDragging(false);
+          onDragLeave={() =>
+            setDragging(false)
+          }
+          onDrop={(event) => {
+            setDragging(false);
+
+            onDrop(event);
           }}
-          onDrop={handleDrop}
           sx={{
-            border: isDragging
-              ? '1.5px dashed #0071E3'
-              : '1.5px dashed rgba(0,0,0,0.14)',
+            border:
+              dragging
+                ? '2px dashed #0071E3'
+                : '1px dashed rgba(0,0,0,0.18)',
 
-            borderRadius: '16px',
-            p: 4,
-            textAlign: 'center',
+            borderRadius:
+              '16px',
 
-            backgroundColor: isDragging
-              ? 'rgba(0,113,227,0.05)'
-              : '#FAFAFC',
+            px: 3,
 
-            transition: 'all 0.2s ease',
+            py: 4,
+
+            textAlign:
+              'center',
+
+            backgroundColor:
+              dragging
+                ? 'rgba(0,113,227,0.035)'
+                : '#FAFAFC',
+
+            transition:
+              'all 0.2s ease',
           }}
         >
-          <Upload
+          <UploadCloud
             size={30}
-            strokeWidth={1.5}
-            color={
-              isDragging
-                ? '#0071E3'
-                : '#6E6E73'
-            }
+            color="#0071E3"
           />
 
           <Typography
             sx={{
-              mt: 1.5,
               fontWeight: 600,
-              fontSize: '0.9rem',
+
+              fontSize:
+                '0.88rem',
+
+              mt: 1,
             }}
           >
-            Upload {source} dataset
+            Drop your CSV here
           </Typography>
 
           <Typography
             sx={{
-              color: 'text.secondary',
-              fontSize: '0.78rem',
-              mt: 0.5,
-            }}
-          >
-            Drag and drop your CSV file here
-          </Typography>
+              color:
+                'text.secondary',
 
-          <Typography
-            sx={{
-              color: 'text.secondary',
-              fontSize: '0.72rem',
-              my: 1.5,
+              fontSize:
+                '0.72rem',
+
+              mt: 0.4,
             }}
           >
-            or
+            CSV only · maximum
+            size 10 MB
           </Typography>
 
           <Button
             component="label"
-            variant="contained"
+            variant="outlined"
+            size="small"
             sx={{
-              px: 2.5,
+              mt: 2,
             }}
           >
-            Select File
+            Select CSV
 
             <input
               hidden
               type="file"
               accept=".csv,text/csv"
-              onChange={(event) => {
-                const file =
-                  event.target.files?.[0];
-
-                if (file) {
-                  onFile(file, source);
-                }
-
-                event.target.value = '';
-              }}
+              onChange={
+                onFileChange
+              }
             />
           </Button>
-
-          <Typography
-            sx={{
-              color: 'text.secondary',
-              fontSize: '0.68rem',
-              mt: 1.5,
-            }}
-          >
-            CSV • Maximum 10 MB
-          </Typography>
         </Box>
 
-        {/* Uploaded File Information */}
-        {data && (
-          <>
-            <Divider sx={{ my: 3 }} />
+        {uploadError && (
+          <Alert
+            severity="error"
+            sx={{
+              mt: 2,
 
-            <Stack spacing={2}>
+              borderRadius:
+                '12px',
+            }}
+          >
+            {uploadError}
+          </Alert>
+        )}
+
+        {dataset && (
+          <>
+            <Divider
+              sx={{
+                my: 3,
+              }}
+            />
+
+            {/* FILE STATUS */}
+            <Box
+              sx={{
+                display: 'flex',
+
+                justifyContent:
+                  'space-between',
+
+                alignItems:
+                  'center',
+
+                flexWrap:
+                  'wrap',
+
+                gap: 2,
+              }}
+            >
               <Box
                 sx={{
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  gap: 2,
+
+                  gap: 1.2,
+
+                  alignItems:
+                    'center',
                 }}
               >
+                <FileSpreadsheet
+                  size={19}
+                  color="#6E6E73"
+                />
+
                 <Box>
                   <Typography
                     sx={{
-                      fontSize: '0.9rem',
-                      fontWeight: 600,
+                      fontSize:
+                        '0.82rem',
+
+                      fontWeight:
+                        600,
                     }}
                   >
-                    {data.fileName}
+                    {
+                      dataset.fileName
+                    }
                   </Typography>
 
                   <Typography
                     sx={{
-                      color: 'text.secondary',
-                      fontSize: '0.75rem',
-                      mt: 0.3,
+                      color:
+                        'text.secondary',
+
+                      fontSize:
+                        '0.68rem',
+
+                      mt: 0.2,
                     }}
                   >
                     {formatFileSize(
-                      data.fileSize
+                      dataset.fileSize
                     )}
-                    {' • '}
-                    {data.totalRows} rows
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Chip
+                size="small"
+                icon={
+                  isValid ? (
+                    <CheckCircle2
+                      size={14}
+                    />
+                  ) : (
+                    <AlertTriangle
+                      size={14}
+                    />
+                  )
+                }
+                label={
+                  isValid
+                    ? 'Valid'
+                    : 'Issues Found'
+                }
+                sx={{
+                  backgroundColor:
+                    isValid
+                      ? '#EAF7EE'
+                      : '#FFF1E8',
+
+                  color:
+                    isValid
+                      ? '#248A3D'
+                      : '#A64B00',
+
+                  fontWeight: 600,
+
+                  '& .MuiChip-icon':
+                    {
+                      color:
+                        'inherit',
+                    },
+                }}
+              />
+            </Box>
+
+            {/* DATA QUALITY */}
+            <Box
+              sx={{
+                mt: 3,
+
+                p: 2.5,
+
+                borderRadius:
+                  '16px',
+
+                backgroundColor:
+                  '#FAFAFC',
+
+                border:
+                  '1px solid rgba(0,0,0,0.05)',
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+
+                  justifyContent:
+                    'space-between',
+
+                  alignItems:
+                    'center',
+
+                  gap: 2,
+
+                  mb: 1.5,
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+
+                    alignItems:
+                      'center',
+
+                    gap: 1,
+                  }}
+                >
+                  <ShieldCheck
+                    size={17}
+                  />
+
+                  <Typography
+                    sx={{
+                      fontSize:
+                        '0.8rem',
+
+                      fontWeight:
+                        600,
+                    }}
+                  >
+                    Data Quality Score
                   </Typography>
                 </Box>
 
-                <Stack
-                  direction="row"
-                  spacing={1}
+                <Typography
                   sx={{
-                    alignItems: 'center',
+                    fontSize:
+                      '1.3rem',
+
+                    fontWeight:
+                      700,
+
+                    color:
+                      getQualityColor(
+                        dataset.qualityScore
+                      ),
                   }}
                 >
-                  {data.errors.length === 0 ? (
-                    <Chip
-                      icon={
-                        <CheckCircle2
-                          size={14}
-                        />
-                      }
-                      label="Valid"
-                      size="small"
-                      sx={{
-                        backgroundColor:
-                          '#EAF7EE',
-                        color: '#248A3D',
-
-                        '& .MuiChip-icon': {
-                          color: '#248A3D',
-                        },
-                      }}
-                    />
-                  ) : (
-                    <Chip
-                      icon={
-                        <XCircle size={14} />
-                      }
-                      label="Invalid"
-                      size="small"
-                      sx={{
-                        backgroundColor:
-                          '#FFECEF',
-                        color: '#D70015',
-
-                        '& .MuiChip-icon': {
-                          color: '#D70015',
-                        },
-                      }}
-                    />
-                  )}
-
-                  <Button
-                    size="small"
-                    onClick={onRemove}
-                    sx={{
-                      color: 'text.secondary',
-                      minWidth: 0,
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </Stack>
+                  {
+                    dataset.qualityScore
+                  }
+                  %
+                </Typography>
               </Box>
 
-              {/* Validation Errors */}
-              {data.errors.length > 0 && (
-                <>
-                  <Alert
-                    severity="error"
-                    sx={{
-                      borderRadius: '12px',
-                    }}
-                  >
-                    {data.errors.length}{' '}
-                    validation error
-                    {data.errors.length !== 1
-                      ? 's'
-                      : ''}{' '}
-                    detected.
-                  </Alert>
+              <LinearProgress
+                variant="determinate"
+                value={
+                  dataset.qualityScore
+                }
+                sx={{
+                  height: 8,
+
+                  borderRadius:
+                    '999px',
+
+                  backgroundColor:
+                    '#E8E8ED',
+
+                  '& .MuiLinearProgress-bar':
+                    {
+                      borderRadius:
+                        '999px',
+
+                      backgroundColor:
+                        getQualityColor(
+                          dataset.qualityScore
+                        ),
+                    },
+                }}
+              />
+
+              <Box
+                sx={{
+                  display: 'grid',
+
+                  gridTemplateColumns:
+                    {
+                      xs: '1fr 1fr',
+                      md: 'repeat(4, 1fr)',
+                    },
+
+                  gap: 1.5,
+
+                  mt: 2.5,
+                }}
+              >
+                <QualityMetric
+                  label="Total Rows"
+                  value={
+                    dataset.totalRows
+                  }
+                />
+
+                <QualityMetric
+                  label="Clean Rows"
+                  value={
+                    dataset.validRows
+                  }
+                />
+
+                <QualityMetric
+                  label="Rows With Issues"
+                  value={
+                    dataset.invalidRows
+                  }
+                />
+
+                <QualityMetric
+                  label="Duplicate IDs"
+                  value={
+                    dataset
+                      .duplicateIds
+                      .length
+                  }
+                />
+              </Box>
+
+              <Typography
+                sx={{
+                  color:
+                    'text.secondary',
+
+                  fontSize:
+                    '0.66rem',
+
+                  lineHeight:
+                    1.45,
+
+                  mt: 2,
+                }}
+              >
+                Quality score is
+                calculated as rows
+                without blocking
+                issues divided by
+                total data rows.
+              </Typography>
+            </Box>
+
+            {/* DUPLICATES */}
+            {dataset
+              .duplicateIds
+              .length > 0 && (
+              <Box
+                sx={{
+                  mt: 2.5,
+
+                  border:
+                    '1px solid rgba(166,75,0,0.18)',
+
+                  borderRadius:
+                    '14px',
+
+                  overflow:
+                    'hidden',
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+
+                    alignItems:
+                      'center',
+
+                    gap: 1,
+
+                    p: 2,
+
+                    backgroundColor:
+                      '#FFF8F2',
+                  }}
+                >
+                  <Copy
+                    size={17}
+                    color="#A64B00"
+                  />
 
                   <Box>
-                    {data.errors
-                      .slice(0, 5)
+                    <Typography
+                      sx={{
+                        fontSize:
+                          '0.8rem',
+
+                        fontWeight:
+                          600,
+
+                        color:
+                          '#A64B00',
+                      }}
+                    >
+                      Duplicate IDs
+                      detected
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        color:
+                          'text.secondary',
+
+                        fontSize:
+                          '0.7rem',
+
+                        mt: 0.2,
+                      }}
+                    >
+                      Reconciliation
+                      is blocked until
+                      these duplicate
+                      identifiers are
+                      resolved.
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Box
+                  sx={{
+                    p: 2,
+                  }}
+                >
+                  {dataset.duplicateIds.map(
+                    (
+                      duplicate
+                    ) => (
+                      <Box
+                        key={
+                          duplicate.id
+                        }
+                        sx={{
+                          display:
+                            'flex',
+
+                          justifyContent:
+                            'space-between',
+
+                          gap: 2,
+
+                          py: 0.75,
+
+                          borderBottom:
+                            '1px solid rgba(0,0,0,0.05)',
+
+                          '&:last-child':
+                            {
+                              borderBottom:
+                                'none',
+                            },
+                        }}
+                      >
+                        <Typography
+                          sx={{
+                            fontSize:
+                              '0.76rem',
+
+                            fontWeight:
+                              600,
+                          }}
+                        >
+                          ID{' '}
+                          {
+                            duplicate.id
+                          }
+                        </Typography>
+
+                        <Typography
+                          sx={{
+                            color:
+                              'text.secondary',
+
+                            fontSize:
+                              '0.72rem',
+                          }}
+                        >
+                          Rows{' '}
+                          {duplicate.rows.join(
+                            ', '
+                          )}
+                        </Typography>
+                      </Box>
+                    )
+                  )}
+                </Box>
+              </Box>
+            )}
+
+            {/* ERRORS */}
+            {dataset.errors
+              .length > 0 && (
+              <Box
+                sx={{
+                  mt: 2.5,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontWeight: 600,
+
+                    fontSize:
+                      '0.78rem',
+
+                    color:
+                      '#D70015',
+
+                    mb: 1,
+                  }}
+                >
+                  Blocking Issues (
+                  {
+                    dataset
+                      .errors
+                      .length
+                  }
+                  )
+                </Typography>
+
+                <Alert
+                  severity="error"
+                  sx={{
+                    borderRadius:
+                      '12px',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display:
+                        'grid',
+
+                      gap: 0.7,
+                    }}
+                  >
+                    {dataset.errors
+                      .slice(0, 8)
                       .map(
                         (
                           error,
@@ -503,11 +1129,8 @@ function ImportCard({
                           <Typography
                             key={`${error}-${index}`}
                             sx={{
-                              color:
-                                'error.main',
                               fontSize:
-                                '0.75rem',
-                              mb: 0.7,
+                                '0.74rem',
                             }}
                           >
                             • {error}
@@ -515,129 +1138,200 @@ function ImportCard({
                         )
                       )}
 
-                    {data.errors.length >
-                      5 && (
+                    {dataset.errors
+                      .length >
+                      8 && (
                       <Typography
                         sx={{
-                          color:
-                            'text.secondary',
                           fontSize:
                             '0.72rem',
+
+                          fontWeight:
+                            600,
                         }}
                       >
-                        +{' '}
-                        {data.errors.length -
-                          5}{' '}
-                        additional errors
+                        +
+                        {dataset
+                          .errors
+                          .length -
+                          8}{' '}
+                        additional
+                        issues
                       </Typography>
                     )}
                   </Box>
-                </>
-              )}
+                </Alert>
+              </Box>
+            )}
 
-              {/* Data Preview */}
-              {data.errors.length === 0 &&
-                data.records.length > 0 && (
-                  <Box>
-                    <Typography
-                      sx={{
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        mb: 1,
-                      }}
-                    >
-                      Data Preview
-                    </Typography>
+            {/* WARNINGS */}
+            {dataset.warnings
+              .length > 0 && (
+              <Box
+                sx={{
+                  mt: 2,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontWeight: 600,
 
-                    <Box
-                      sx={{
-                        overflowX: 'auto',
-                        border:
-                          '1px solid rgba(0,0,0,0.06)',
-                        borderRadius:
-                          '12px',
-                      }}
-                    >
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>
-                              ID
-                            </TableCell>
+                    fontSize:
+                      '0.78rem',
 
-                            <TableCell>
-                              Customer
-                            </TableCell>
+                    color:
+                      '#9A6700',
 
-                            <TableCell align="right">
-                              Amount
-                            </TableCell>
+                    mb: 1,
+                  }}
+                >
+                  Warnings
+                </Typography>
 
-                            <TableCell>
-                              Status
-                            </TableCell>
-                          </TableRow>
-                        </TableHead>
-
-                        <TableBody>
-                          {data.records
-                            .slice(0, 5)
-                            .map(
-                              (record) => (
-                                <TableRow
-                                  key={
-                                    record.id
-                                  }
-                                >
-                                  <TableCell>
-                                    {
-                                      record.id
-                                    }
-                                  </TableCell>
-
-                                  <TableCell>
-                                    {
-                                      record.cliente
-                                    }
-                                  </TableCell>
-
-                                  <TableCell align="right">
-                                    {record.monto.toLocaleString(
-                                      'es-CR'
-                                    )}
-                                  </TableCell>
-
-                                  <TableCell>
-                                    {
-                                      record.estado
-                                    }
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            )}
-                        </TableBody>
-                      </Table>
-                    </Box>
-
-                    {data.records.length >
-                      5 && (
+                <Alert
+                  severity="warning"
+                  sx={{
+                    borderRadius:
+                      '12px',
+                  }}
+                >
+                  {dataset.warnings.map(
+                    (
+                      warning,
+                      index
+                    ) => (
                       <Typography
+                        key={`${warning}-${index}`}
                         sx={{
-                          color:
-                            'text.secondary',
                           fontSize:
-                            '0.7rem',
-                          mt: 1,
+                            '0.74rem',
                         }}
                       >
-                        Showing first 5 of{' '}
-                        {data.records.length}{' '}
-                        valid records.
+                        • {warning}
                       </Typography>
-                    )}
-                  </Box>
-                )}
-            </Stack>
+                    )
+                  )}
+                </Alert>
+              </Box>
+            )}
+
+            {/* PREVIEW */}
+            {dataset.records
+              .length > 0 && (
+              <Box
+                sx={{
+                  mt: 3,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontWeight: 600,
+
+                    fontSize:
+                      '0.8rem',
+
+                    mb: 1,
+                  }}
+                >
+                  Data Preview
+                </Typography>
+
+                <Typography
+                  sx={{
+                    color:
+                      'text.secondary',
+
+                    fontSize:
+                      '0.68rem',
+
+                    mb: 1.5,
+                  }}
+                >
+                  First 5 rows that
+                  passed field-level
+                  validation.
+                </Typography>
+
+                <Box
+                  sx={{
+                    overflowX:
+                      'auto',
+
+                    border:
+                      '1px solid rgba(0,0,0,0.06)',
+
+                    borderRadius:
+                      '12px',
+                  }}
+                >
+                  <Table
+                    size="small"
+                  >
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>
+                          ID
+                        </TableCell>
+
+                        <TableCell>
+                          Customer
+                        </TableCell>
+
+                        <TableCell>
+                          Amount
+                        </TableCell>
+
+                        <TableCell>
+                          Status
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+
+                    <TableBody>
+                      {dataset.records
+                        .slice(
+                          0,
+                          5
+                        )
+                        .map(
+                          (
+                            record,
+                            index
+                          ) => (
+                            <TableRow
+                              key={`${record.id}-${index}`}
+                            >
+                              <TableCell>
+                                {
+                                  record.id
+                                }
+                              </TableCell>
+
+                              <TableCell>
+                                {
+                                  record.cliente
+                                }
+                              </TableCell>
+
+                              <TableCell>
+                                {record.monto.toLocaleString(
+                                  'es-CR'
+                                )}
+                              </TableCell>
+
+                              <TableCell>
+                                {
+                                  record.estado
+                                }
+                              </TableCell>
+                            </TableRow>
+                          )
+                        )}
+                    </TableBody>
+                  </Table>
+                </Box>
+              </Box>
+            )}
           </>
         )}
       </CardContent>
@@ -645,25 +1339,88 @@ function ImportCard({
   );
 }
 
+interface QualityMetricProps {
+  label: string;
+  value: number;
+}
+
+function QualityMetric({
+  label,
+  value,
+}: QualityMetricProps) {
+  return (
+    <Box>
+      <Typography
+        sx={{
+          color:
+            'text.secondary',
+
+          fontSize:
+            '0.65rem',
+
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </Typography>
+
+      <Typography
+        sx={{
+          fontSize:
+            '1.05rem',
+
+          fontWeight: 700,
+
+          mt: 0.4,
+        }}
+      >
+        {value.toLocaleString()}
+      </Typography>
+    </Box>
+  );
+}
+
+function getQualityColor(
+  score: number
+): string {
+  if (score >= 95) {
+    return '#248A3D';
+  }
+
+  if (score >= 80) {
+    return '#9A6700';
+  }
+
+  return '#D70015';
+}
+
 function formatFileSize(
   bytes: number
 ): string {
   if (bytes === 0) {
-    return '0 KB';
+    return '0 Bytes';
   }
 
-  const kilobytes = bytes / 1024;
+  const units = [
+    'Bytes',
+    'KB',
+    'MB',
+  ];
 
-  if (kilobytes < 1024) {
-    return `${kilobytes.toFixed(
-      1
-    )} KB`;
-  }
+  const index =
+    Math.min(
+      Math.floor(
+        Math.log(bytes) /
+          Math.log(1024)
+      ),
+      units.length - 1
+    );
 
-  const megabytes =
-    kilobytes / 1024;
+  const value =
+    bytes /
+    1024 ** index;
 
-  return `${megabytes.toFixed(
-    1
-  )} MB`;
+  return `${value.toFixed(
+    index === 0 ? 0 : 2
+  )} ${units[index]}`;
 }
