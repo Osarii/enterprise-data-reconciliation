@@ -1,0 +1,4 @@
+id,cliente,monto,estado
+1001,Medical Solutions CR,450000,Activo
+1002,,hola,Activo
+1003,Industrial Systems,-500,Pendiente
