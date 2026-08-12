@@ -100,6 +100,7 @@ function createDatasetSnapshot(
     blockingIssues: dataset.qualitySummary.blockingIssues,
     warnings: dataset.qualitySummary.warnings,
     duplicateIds: dataset.qualitySummary.duplicateIds,
+    fieldMapping: { ...dataset.fieldMapping },
   };
 }
 

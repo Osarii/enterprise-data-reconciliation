@@ -8,9 +8,15 @@ import type {
   DuplicateIdInfo,
 } from './CsvValidation';
 
+import type {
+  FieldMapping,
+} from './FieldMapping';
+
 export interface ImportedDataset {
   fileName: string;
   fileSize: number;
+  headers: string[];
+  fieldMapping: FieldMapping;
   records: ReconciliationRecord[];
   errors: string[];
   warnings: string[];

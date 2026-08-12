@@ -3,9 +3,18 @@ import {
   WORKSPACE_STORAGE_VERSION,
 } from '../config/storageConfig';
 
+import {
+  DEFAULT_FIELD_MAPPING,
+} from '../config/fieldMappingConfig';
+
 import type {
   ImportedDataset,
 } from '../types/ImportedDataset';
+
+import type {
+  DatasetFieldMappings,
+  FieldMapping,
+} from '../types/FieldMapping';
 
 import type {
   ReconciliationHistoryEntry,
@@ -24,6 +33,7 @@ export interface PersistedWorkspace {
   reconciliationResult: ReconciliationResult | null;
   reviewedExceptionKeys: string[];
   reconciliationHistory: ReconciliationHistoryEntry[];
+  fieldMappings: DatasetFieldMappings;
 }
 
 export interface WorkspacePersistenceResult {
@@ -38,15 +48,7 @@ interface WorkspaceStateToPersist {
   reconciliationResult: ReconciliationResult | null;
   reviewedExceptionKeys: string[];
   reconciliationHistory: ReconciliationHistoryEntry[];
-}
-
-interface LegacyPersistedWorkspaceV1 {
-  version: 1;
-  savedAt: string;
-  erpData: ImportedDataset | null;
-  crmData: ImportedDataset | null;
-  reconciliationResult: ReconciliationResult | null;
-  reviewedExceptionKeys: string[];
+  fieldMappings: DatasetFieldMappings;
 }
 
 export function loadWorkspace(): PersistedWorkspace | null {
@@ -64,13 +66,10 @@ export function loadWorkspace(): PersistedWorkspace | null {
     }
 
     const parsedValue: unknown = JSON.parse(rawValue);
+    const normalized = normalizeWorkspace(parsedValue);
 
-    if (isPersistedWorkspace(parsedValue)) {
-      return parsedValue;
-    }
-
-    if (isLegacyPersistedWorkspaceV1(parsedValue)) {
-      return migrateLegacyWorkspace(parsedValue);
+    if (normalized) {
+      return normalized;
     }
 
     window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
@@ -98,7 +97,8 @@ export function saveWorkspace(
       state.crmData ||
       state.reconciliationResult ||
       state.reviewedExceptionKeys.length > 0 ||
-      state.reconciliationHistory.length > 0
+      state.reconciliationHistory.length > 0 ||
+      !areDatasetFieldMappingsDefault(state.fieldMappings)
   );
 
   if (!hasPersistableData) {
@@ -130,6 +130,7 @@ export function saveWorkspace(
     reconciliationResult: state.reconciliationResult,
     reviewedExceptionKeys: state.reviewedExceptionKeys,
     reconciliationHistory: state.reconciliationHistory,
+    fieldMappings: state.fieldMappings,
   };
 
   try {
@@ -165,18 +166,325 @@ export function clearPersistedWorkspace(): boolean {
   }
 }
 
-function migrateLegacyWorkspace(
-  workspace: LegacyPersistedWorkspaceV1
-): PersistedWorkspace {
+function normalizeWorkspace(
+  value: unknown
+): PersistedWorkspace | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  if (
+    value.version !== 1 &&
+    value.version !== 2 &&
+    value.version !== WORKSPACE_STORAGE_VERSION
+  ) {
+    return null;
+  }
+
+  if (typeof value.savedAt !== 'string') {
+    return null;
+  }
+
+  const erpData = normalizeImportedDataset(value.erpData);
+  const crmData = normalizeImportedDataset(value.crmData);
+
+  if (value.erpData !== null && !erpData) {
+    return null;
+  }
+
+  if (value.crmData !== null && !crmData) {
+    return null;
+  }
+
+  const reconciliationResult = normalizeReconciliationResult(
+    value.reconciliationResult
+  );
+
+  if (
+    value.reconciliationResult !== null &&
+    !reconciliationResult
+  ) {
+    return null;
+  }
+
+  if (!isStringArray(value.reviewedExceptionKeys)) {
+    return null;
+  }
+
+  const reconciliationHistory =
+    value.version === 1
+      ? []
+      : normalizeHistoryArray(value.reconciliationHistory);
+
+  if (
+    value.version !== 1 &&
+    reconciliationHistory === null
+  ) {
+    return null;
+  }
+
+  const fieldMappings =
+    value.version === WORKSPACE_STORAGE_VERSION
+      ? normalizeDatasetFieldMappings(value.fieldMappings)
+      : {
+          erp: erpData?.fieldMapping ?? { ...DEFAULT_FIELD_MAPPING },
+          crm: crmData?.fieldMapping ?? { ...DEFAULT_FIELD_MAPPING },
+        };
+
+  if (!fieldMappings) {
+    return null;
+  }
+
   return {
     version: WORKSPACE_STORAGE_VERSION,
-    savedAt: workspace.savedAt,
-    erpData: workspace.erpData,
-    crmData: workspace.crmData,
-    reconciliationResult: workspace.reconciliationResult,
-    reviewedExceptionKeys: workspace.reviewedExceptionKeys,
-    reconciliationHistory: [],
+    savedAt: value.savedAt,
+    erpData,
+    crmData,
+    reconciliationResult,
+    reviewedExceptionKeys: value.reviewedExceptionKeys,
+    reconciliationHistory: reconciliationHistory ?? [],
+    fieldMappings,
   };
+}
+
+function normalizeImportedDataset(
+  value: unknown
+): ImportedDataset | null {
+  if (value === null) {
+    return null;
+  }
+
+  if (!isObject(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.fileName !== 'string' ||
+    typeof value.fileSize !== 'number' ||
+    !Array.isArray(value.records) ||
+    !isStringArray(value.errors) ||
+    !isStringArray(value.warnings) ||
+    !Array.isArray(value.issues) ||
+    !isObject(value.qualitySummary) ||
+    !Array.isArray(value.duplicateIds) ||
+    typeof value.totalRows !== 'number' ||
+    typeof value.validRows !== 'number' ||
+    typeof value.invalidRows !== 'number' ||
+    typeof value.cleanRows !== 'number' ||
+    typeof value.rowsWithIssues !== 'number' ||
+    typeof value.qualityScore !== 'number'
+  ) {
+    return null;
+  }
+
+  const fieldMapping = normalizeFieldMapping(value.fieldMapping) ?? {
+    ...DEFAULT_FIELD_MAPPING,
+  };
+
+  const headers = isStringArray(value.headers)
+    ? value.headers
+    : Array.from(new Set(Object.values(fieldMapping)));
+
+  return {
+    fileName: value.fileName,
+    fileSize: value.fileSize,
+    headers,
+    fieldMapping,
+    records: value.records as ImportedDataset['records'],
+    errors: value.errors,
+    warnings: value.warnings,
+    issues: value.issues as ImportedDataset['issues'],
+    qualitySummary:
+      value.qualitySummary as unknown as ImportedDataset['qualitySummary'],
+    duplicateIds:
+      value.duplicateIds as ImportedDataset['duplicateIds'],
+    totalRows: value.totalRows,
+    validRows: value.validRows,
+    invalidRows: value.invalidRows,
+    cleanRows: value.cleanRows,
+    rowsWithIssues: value.rowsWithIssues,
+    qualityScore: value.qualityScore,
+  };
+}
+
+function normalizeReconciliationResult(
+  value: unknown
+): ReconciliationResult | null {
+  if (value === null) {
+    return null;
+  }
+
+  if (!isObject(value)) {
+    return null;
+  }
+
+  if (
+    !Array.isArray(value.matched) ||
+    !Array.isArray(value.differences) ||
+    !Array.isArray(value.onlyERP) ||
+    !Array.isArray(value.onlyCRM) ||
+    !isReconciliationSummary(value.summary) ||
+    typeof value.executedAt !== 'string'
+  ) {
+    return null;
+  }
+
+  return value as unknown as ReconciliationResult;
+}
+
+function normalizeHistoryArray(
+  value: unknown
+): ReconciliationHistoryEntry[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const normalizedEntries: ReconciliationHistoryEntry[] = [];
+
+  for (const entry of value) {
+    const normalizedEntry = normalizeHistoryEntry(entry);
+
+    if (!normalizedEntry) {
+      return null;
+    }
+
+    normalizedEntries.push(normalizedEntry);
+  }
+
+  return normalizedEntries;
+}
+
+function normalizeHistoryEntry(
+  value: unknown
+): ReconciliationHistoryEntry | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.executedAt !== 'string' ||
+    !isReconciliationSummary(value.summary) ||
+    typeof value.exceptionCount !== 'number'
+  ) {
+    return null;
+  }
+
+  const erpDataset = normalizeHistoryDatasetSnapshot(value.erpDataset);
+  const crmDataset = normalizeHistoryDatasetSnapshot(value.crmDataset);
+
+  if (!erpDataset || !crmDataset) {
+    return null;
+  }
+
+  return {
+    id: value.id,
+    executedAt: value.executedAt,
+    erpDataset,
+    crmDataset,
+    summary: value.summary,
+    exceptionCount: value.exceptionCount,
+  };
+}
+
+function normalizeHistoryDatasetSnapshot(
+  value: unknown
+): ReconciliationHistoryEntry['erpDataset'] | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.fileName !== 'string' ||
+    typeof value.fileSize !== 'number' ||
+    typeof value.totalRows !== 'number' ||
+    typeof value.cleanRows !== 'number' ||
+    typeof value.rowsWithIssues !== 'number' ||
+    typeof value.qualityScore !== 'number' ||
+    typeof value.blockingIssues !== 'number' ||
+    typeof value.warnings !== 'number' ||
+    typeof value.duplicateIds !== 'number'
+  ) {
+    return null;
+  }
+
+  return {
+    fileName: value.fileName,
+    fileSize: value.fileSize,
+    totalRows: value.totalRows,
+    cleanRows: value.cleanRows,
+    rowsWithIssues: value.rowsWithIssues,
+    qualityScore: value.qualityScore,
+    blockingIssues: value.blockingIssues,
+    warnings: value.warnings,
+    duplicateIds: value.duplicateIds,
+    fieldMapping:
+      normalizeFieldMapping(value.fieldMapping) ?? {
+        ...DEFAULT_FIELD_MAPPING,
+      },
+  };
+}
+
+function normalizeDatasetFieldMappings(
+  value: unknown
+): DatasetFieldMappings | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const erp = normalizeFieldMapping(value.erp);
+  const crm = normalizeFieldMapping(value.crm);
+
+  if (!erp || !crm) {
+    return null;
+  }
+
+  return { erp, crm };
+}
+
+function normalizeFieldMapping(
+  value: unknown
+): FieldMapping | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.cliente !== 'string' ||
+    typeof value.monto !== 'string' ||
+    typeof value.estado !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    id: value.id,
+    cliente: value.cliente,
+    monto: value.monto,
+    estado: value.estado,
+  };
+}
+
+function areDatasetFieldMappingsDefault(
+  mappings: DatasetFieldMappings
+): boolean {
+  return (
+    areFieldMappingsEqual(mappings.erp, DEFAULT_FIELD_MAPPING) &&
+    areFieldMappingsEqual(mappings.crm, DEFAULT_FIELD_MAPPING)
+  );
+}
+
+function areFieldMappingsEqual(
+  first: FieldMapping,
+  second: FieldMapping
+): boolean {
+  return (
+    first.id === second.id &&
+    first.cliente === second.cliente &&
+    first.monto === second.monto &&
+    first.estado === second.estado
+  );
 }
 
 function safelyRemoveWorkspace() {
@@ -204,139 +512,6 @@ function getPersistenceErrorMessage(error: unknown): string {
   }
 
   return 'The workspace could not be saved to browser storage. Current data remains available in memory.';
-}
-
-function isPersistedWorkspace(
-  value: unknown
-): value is PersistedWorkspace {
-  if (!isObject(value)) {
-    return false;
-  }
-
-  return (
-    value.version === WORKSPACE_STORAGE_VERSION &&
-    typeof value.savedAt === 'string' &&
-    isImportedDatasetOrNull(value.erpData) &&
-    isImportedDatasetOrNull(value.crmData) &&
-    isReconciliationResultOrNull(value.reconciliationResult) &&
-    isStringArray(value.reviewedExceptionKeys) &&
-    isReconciliationHistoryArray(value.reconciliationHistory)
-  );
-}
-
-function isLegacyPersistedWorkspaceV1(
-  value: unknown
-): value is LegacyPersistedWorkspaceV1 {
-  if (!isObject(value)) {
-    return false;
-  }
-
-  return (
-    value.version === 1 &&
-    typeof value.savedAt === 'string' &&
-    isImportedDatasetOrNull(value.erpData) &&
-    isImportedDatasetOrNull(value.crmData) &&
-    isReconciliationResultOrNull(value.reconciliationResult) &&
-    isStringArray(value.reviewedExceptionKeys)
-  );
-}
-
-function isImportedDatasetOrNull(
-  value: unknown
-): value is ImportedDataset | null {
-  return value === null || isImportedDataset(value);
-}
-
-function isImportedDataset(
-  value: unknown
-): value is ImportedDataset {
-  if (!isObject(value)) {
-    return false;
-  }
-
-  return (
-    typeof value.fileName === 'string' &&
-    typeof value.fileSize === 'number' &&
-    Array.isArray(value.records) &&
-    isStringArray(value.errors) &&
-    isStringArray(value.warnings) &&
-    Array.isArray(value.issues) &&
-    isObject(value.qualitySummary) &&
-    Array.isArray(value.duplicateIds) &&
-    typeof value.totalRows === 'number' &&
-    typeof value.validRows === 'number' &&
-    typeof value.invalidRows === 'number' &&
-    typeof value.cleanRows === 'number' &&
-    typeof value.rowsWithIssues === 'number' &&
-    typeof value.qualityScore === 'number'
-  );
-}
-
-function isReconciliationResultOrNull(
-  value: unknown
-): value is ReconciliationResult | null {
-  return value === null || isReconciliationResult(value);
-}
-
-function isReconciliationResult(
-  value: unknown
-): value is ReconciliationResult {
-  if (!isObject(value)) {
-    return false;
-  }
-
-  return (
-    Array.isArray(value.matched) &&
-    Array.isArray(value.differences) &&
-    Array.isArray(value.onlyERP) &&
-    Array.isArray(value.onlyCRM) &&
-    isReconciliationSummary(value.summary) &&
-    typeof value.executedAt === 'string'
-  );
-}
-
-function isReconciliationHistoryArray(
-  value: unknown
-): value is ReconciliationHistoryEntry[] {
-  return (
-    Array.isArray(value) &&
-    value.every((entry) => isReconciliationHistoryEntry(entry))
-  );
-}
-
-function isReconciliationHistoryEntry(
-  value: unknown
-): value is ReconciliationHistoryEntry {
-  if (!isObject(value)) {
-    return false;
-  }
-
-  return (
-    typeof value.id === 'string' &&
-    typeof value.executedAt === 'string' &&
-    isHistoryDatasetSnapshot(value.erpDataset) &&
-    isHistoryDatasetSnapshot(value.crmDataset) &&
-    isReconciliationSummary(value.summary) &&
-    typeof value.exceptionCount === 'number'
-  );
-}
-
-function isHistoryDatasetSnapshot(value: unknown): boolean {
-  if (!isObject(value)) {
-    return false;
-  }
-
-  return (
-    typeof value.fileName === 'string' &&
-    typeof value.fileSize === 'number' &&
-    typeof value.totalRows === 'number' &&
-    typeof value.cleanRows === 'number' &&
-    typeof value.rowsWithIssues === 'number' &&
-    typeof value.qualityScore === 'number' &&
-    typeof value.blockingIssues === 'number' &&
-    typeof value.warnings === 'number' &&
-    typeof value.duplicateIds === 'number'
-  );
 }
 
 function isReconciliationSummary(

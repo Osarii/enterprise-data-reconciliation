@@ -25,6 +25,7 @@ const STRUCTURAL_BLOCKING_TYPES = new Set<DataQualityIssueType>([
   'Missing Column',
   'CSV Parse Error',
   'Empty File',
+  'Invalid Field Mapping',
 ]);
 
 const STRUCTURAL_WARNING_TYPES = new Set<DataQualityIssueType>([

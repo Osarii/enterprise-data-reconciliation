@@ -14,15 +14,30 @@ import {
 import {
   CheckCircle2,
   Database,
+  GitMerge,
   HardDrive,
   History,
   Moon,
+  RotateCcw,
   Sun,
   Trash2,
 } from 'lucide-react';
 
-import { useReconciliation } from '../../context/ReconciliationContext';
-import { useThemeMode } from '../../context/ThemeModeContext';
+import {
+  CANONICAL_FIELDS,
+} from '../../config/fieldMappingConfig';
+
+import {
+  useReconciliation,
+} from '../../context/ReconciliationContext';
+
+import {
+  useThemeMode,
+} from '../../context/ThemeModeContext';
+
+import type {
+  FieldMapping,
+} from '../../types/FieldMapping';
 
 export default function Settings() {
   const {
@@ -30,12 +45,14 @@ export default function Settings() {
     crmData,
     reconciliationResult,
     reconciliationHistory,
+    fieldMappings,
     persistenceStatus,
     persistenceError,
     lastSavedAt,
     restoredFromStorage,
     clearData,
     clearHistory,
+    resetFieldMappings,
   } = useReconciliation();
 
   const {
@@ -53,7 +70,7 @@ export default function Settings() {
 
   const handleClearWorkspace = () => {
     const shouldClear = window.confirm(
-      'Clear the current ERP/CRM workspace, latest reconciliation and review progress? Reconciliation history will be preserved.'
+      'Clear the current ERP/CRM workspace, latest reconciliation and review progress? Reconciliation history and saved field-mapping profiles will be preserved.'
     );
 
     if (shouldClear) {
@@ -68,6 +85,16 @@ export default function Settings() {
 
     if (shouldClear) {
       clearHistory();
+    }
+  };
+
+  const handleResetMappings = () => {
+    const shouldReset = window.confirm(
+      'Reset the saved ERP and CRM field-mapping profiles to id, cliente, monto and estado? Existing imported datasets and historical snapshots will not be changed.'
+    );
+
+    if (shouldReset) {
+      resetFieldMappings();
     }
   };
 
@@ -88,7 +115,7 @@ export default function Settings() {
             fontSize: '0.86rem',
           }}
         >
-          Manage appearance, local workspace persistence and reconciliation history for this browser.
+          Manage appearance, field-mapping profiles, browser persistence and reconciliation history.
         </Typography>
       </Box>
 
@@ -174,6 +201,82 @@ export default function Settings() {
             <Box
               sx={{
                 display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 2,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Box>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.9,
+                  }}
+                >
+                  <GitMerge size={18} />
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: '1rem',
+                    }}
+                  >
+                    Field Mapping Profiles
+                  </Typography>
+                </Box>
+
+                <Typography
+                  sx={{
+                    mt: 0.5,
+                    color: 'text.secondary',
+                    fontSize: '0.82rem',
+                    maxWidth: 780,
+                  }}
+                >
+                  The most recently applied ERP and CRM mappings are persisted and reused as suggestions when compatible source columns are detected.
+                </Typography>
+              </Box>
+
+              <Button
+                variant="outlined"
+                startIcon={<RotateCcw size={16} />}
+                onClick={handleResetMappings}
+              >
+                Reset mappings
+              </Button>
+            </Box>
+
+            <Divider sx={{ my: 2.5 }} />
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  lg: 'repeat(2, minmax(0, 1fr))',
+                },
+                gap: 1.5,
+              }}
+            >
+              <MappingProfileCard
+                title="ERP Mapping"
+                mapping={fieldMappings.erp}
+              />
+
+              <MappingProfileCard
+                title="CRM Mapping"
+                mapping={fieldMappings.crm}
+              />
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: 'flex',
                 alignItems: 'flex-start',
                 justifyContent: 'space-between',
                 gap: 2,
@@ -197,7 +300,7 @@ export default function Settings() {
                     maxWidth: 780,
                   }}
                 >
-                  ERP/CRM imports, the latest reconciliation, exception review progress and compact reconciliation history are automatically saved in this browser.
+                  ERP/CRM imports, mapped schema metadata, the latest reconciliation, exception review progress and compact reconciliation history are automatically saved in this browser.
                 </Typography>
               </Box>
 
@@ -219,7 +322,6 @@ export default function Settings() {
                     persistenceStatus === 'saved'
                       ? 'var(--success-fg)'
                       : 'var(--danger-fg)',
-
                   '& .MuiChip-icon': {
                     color: 'inherit',
                   },
@@ -302,7 +404,7 @@ export default function Settings() {
                   lineHeight: 1.55,
                 }}
               >
-                V0.1.5 persists the active workspace plus compact historical reconciliation snapshots with browser localStorage. The history intentionally stores summary-level information rather than duplicating every raw record. Audit-grade history will move to PostgreSQL in V0.2.
+                V0.1.6 persists the active workspace, reusable field-mapping profiles and compact historical reconciliation snapshots with browser localStorage. Historical entries keep summary-level metrics and mapping metadata rather than duplicating every raw record. Audit-grade persistence will move to PostgreSQL in V0.2.
               </Typography>
 
               {restoredFromStorage && (
@@ -368,6 +470,82 @@ export default function Settings() {
   );
 }
 
+interface MappingProfileCardProps {
+  title: string;
+  mapping: FieldMapping;
+}
+
+function MappingProfileCard({
+  title,
+  mapping,
+}: MappingProfileCardProps) {
+  return (
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: '14px',
+        backgroundColor: 'var(--surface-subtle)',
+        border: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Typography
+        sx={{
+          fontWeight: 700,
+          fontSize: '0.8rem',
+        }}
+      >
+        {title}
+      </Typography>
+
+      <Box
+        sx={{
+          mt: 1.25,
+          display: 'grid',
+          gap: 0.7,
+        }}
+      >
+        {CANONICAL_FIELDS.map((field) => (
+          <Box
+            key={field}
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 1,
+              py: 0.4,
+            }}
+          >
+            <Typography
+              sx={{
+                color: 'text.secondary',
+                fontSize: '0.72rem',
+              }}
+            >
+              {field}
+            </Typography>
+
+            <Chip
+              size="small"
+              label={mapping[field] || 'Not mapped'}
+              sx={{
+                maxWidth: '70%',
+                fontWeight: 650,
+                backgroundColor: 'var(--primary-soft)',
+                color: 'primary.main',
+                '& .MuiChip-label': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                },
+              }}
+            />
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 interface ThemeChoiceProps {
   active: boolean;
   title: string;
@@ -399,7 +577,6 @@ function ThemeChoice({
         backgroundColor: active
           ? 'var(--primary-soft)'
           : 'var(--surface-subtle)',
-
         '&:hover': {
           borderColor: 'primary.main',
           backgroundColor: active

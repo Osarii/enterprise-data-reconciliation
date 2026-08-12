@@ -1,0 +1,5 @@
+customer_id,customer_name,balance,status
+C-001,Alpha Tech,1000,Activo
+C-002,Café Central,2500,Pendiente
+C-003,Norte Logistics,3000,Activo
+C-004,ERP Only,900,Inactivo

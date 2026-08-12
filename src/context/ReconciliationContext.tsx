@@ -1,10 +1,14 @@
 import {
   createContext,
   useContext,
-  useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
+
+import {
+  DEFAULT_FIELD_MAPPING,
+} from '../config/fieldMappingConfig';
 
 import {
   RECONCILIATION_HISTORY_LIMIT,
@@ -27,6 +31,11 @@ import type {
 } from '../types/ImportedDataset';
 
 import type {
+  DatasetFieldMappings,
+  FieldMapping,
+} from '../types/FieldMapping';
+
+import type {
   ReconciliationHistoryEntry,
 } from '../types/ReconciliationHistory';
 
@@ -47,52 +56,38 @@ export type WorkspacePersistenceStatus =
   | 'saved'
   | 'error';
 
+export type DatasetTarget =
+  | 'erp'
+  | 'crm';
+
 interface ReconciliationContextType {
-  erpData:
-    | ImportedDataset
-    | null;
-
-  crmData:
-    | ImportedDataset
-    | null;
-
-  reconciliationResult:
-    | ReconciliationResult
-    | null;
-
-  reviewedExceptionKeys:
-    string[];
-
-  reconciliationHistory:
-    ReconciliationHistoryEntry[];
-
+  erpData: ImportedDataset | null;
+  crmData: ImportedDataset | null;
+  reconciliationResult: ReconciliationResult | null;
+  reviewedExceptionKeys: string[];
+  reconciliationHistory: ReconciliationHistoryEntry[];
+  fieldMappings: DatasetFieldMappings;
   persistenceStatus: WorkspacePersistenceStatus;
-
-  persistenceError:
-    | string
-    | null;
-
-  lastSavedAt:
-    | string
-    | null;
-
+  persistenceError: string | null;
+  lastSavedAt: string | null;
   restoredFromStorage: boolean;
 
   setErpData: (
-    data:
-      | ImportedDataset
-      | null
+    data: ImportedDataset | null
   ) => void;
 
   setCrmData: (
-    data:
-      | ImportedDataset
-      | null
+    data: ImportedDataset | null
   ) => void;
 
-  runReconciliation: () =>
-    | ReconciliationResult
-    | null;
+  setFieldMapping: (
+    target: DatasetTarget,
+    mapping: FieldMapping
+  ) => void;
+
+  resetFieldMappings: () => void;
+
+  runReconciliation: () => ReconciliationResult | null;
 
   setExceptionReviewed: (
     key: string,
@@ -109,96 +104,99 @@ interface ReconciliationContextType {
   ) => void;
 
   clearHistory: () => void;
-
   clearData: () => void;
 }
 
+interface WorkspaceState {
+  erpData: ImportedDataset | null;
+  crmData: ImportedDataset | null;
+  reconciliationResult: ReconciliationResult | null;
+  reviewedExceptionKeys: string[];
+  reconciliationHistory: ReconciliationHistoryEntry[];
+  fieldMappings: DatasetFieldMappings;
+}
+
 const ReconciliationContext =
-  createContext<
-    | ReconciliationContextType
-    | undefined
-  >(undefined);
+  createContext<ReconciliationContextType | undefined>(undefined);
 
 interface ReconciliationProviderProps {
   children: ReactNode;
 }
 
+function createInitialWorkspaceState(): {
+  workspace: WorkspaceState;
+  restored: boolean;
+  savedAt: string | null;
+} {
+  const restoredWorkspace = loadWorkspace();
+
+  if (!restoredWorkspace) {
+    return {
+      workspace: {
+        erpData: null,
+        crmData: null,
+        reconciliationResult: null,
+        reviewedExceptionKeys: [],
+        reconciliationHistory: [],
+        fieldMappings: {
+          erp: { ...DEFAULT_FIELD_MAPPING },
+          crm: { ...DEFAULT_FIELD_MAPPING },
+        },
+      },
+      restored: false,
+      savedAt: null,
+    };
+  }
+
+  return {
+    workspace: {
+      erpData: restoredWorkspace.erpData,
+      crmData: restoredWorkspace.crmData,
+      reconciliationResult:
+        restoredWorkspace.reconciliationResult,
+      reviewedExceptionKeys: [
+        ...restoredWorkspace.reviewedExceptionKeys,
+      ],
+      reconciliationHistory: [
+        ...restoredWorkspace.reconciliationHistory,
+      ],
+      fieldMappings: {
+        erp: { ...restoredWorkspace.fieldMappings.erp },
+        crm: { ...restoredWorkspace.fieldMappings.crm },
+      },
+    },
+    restored: true,
+    savedAt: restoredWorkspace.savedAt,
+  };
+}
+
 export function ReconciliationProvider({
   children,
 }: ReconciliationProviderProps) {
-  const [restoredWorkspace] = useState(
-    () => loadWorkspace()
+  const [initialWorkspace] = useState(
+    createInitialWorkspaceState
   );
 
-  const [
-    erpDataState,
-    setErpDataState,
-  ] =
-    useState<
-      ImportedDataset | null
-    >(
-      restoredWorkspace?.erpData ?? null
-    );
+  const [workspace, setWorkspace] =
+    useState<WorkspaceState>(initialWorkspace.workspace);
 
-  const [
-    crmDataState,
-    setCrmDataState,
-  ] =
-    useState<
-      ImportedDataset | null
-    >(
-      restoredWorkspace?.crmData ?? null
-    );
-
-  const [
-    reconciliationResult,
-    setReconciliationResult,
-  ] =
-    useState<
-      ReconciliationResult | null
-    >(
-      restoredWorkspace?.reconciliationResult ?? null
-    );
-
-  const [
-    reviewedExceptionKeys,
-    setReviewedExceptionKeys,
-  ] = useState<string[]>(
-    restoredWorkspace?.reviewedExceptionKeys ?? []
+  const workspaceRef = useRef<WorkspaceState>(
+    initialWorkspace.workspace
   );
 
-  const [
-    reconciliationHistory,
-    setReconciliationHistory,
-  ] = useState<ReconciliationHistoryEntry[]>(
-    restoredWorkspace?.reconciliationHistory ?? []
-  );
+  const [persistenceStatus, setPersistenceStatus] =
+    useState<WorkspacePersistenceStatus>('saved');
 
-  const [
-    persistenceStatus,
-    setPersistenceStatus,
-  ] = useState<WorkspacePersistenceStatus>('saved');
+  const [persistenceError, setPersistenceError] =
+    useState<string | null>(null);
 
-  const [
-    persistenceError,
-    setPersistenceError,
-  ] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] =
+    useState<string | null>(initialWorkspace.savedAt);
 
-  const [
-    lastSavedAt,
-    setLastSavedAt,
-  ] = useState<string | null>(
-    restoredWorkspace?.savedAt ?? null
-  );
-
-  useEffect(() => {
-    const persistenceResult = saveWorkspace({
-      erpData: erpDataState,
-      crmData: crmDataState,
-      reconciliationResult,
-      reviewedExceptionKeys,
-      reconciliationHistory,
-    });
+  const persistWorkspace = (
+    nextWorkspace: WorkspaceState
+  ) => {
+    const persistenceResult = saveWorkspace(nextWorkspace);
 
     if (persistenceResult.success) {
       setPersistenceStatus('saved');
@@ -209,236 +207,244 @@ export function ReconciliationProvider({
 
     setPersistenceStatus('error');
     setPersistenceError(persistenceResult.error);
-  }, [
-    erpDataState,
-    crmDataState,
-    reconciliationResult,
-    reviewedExceptionKeys,
-    reconciliationHistory,
-  ]);
+  };
 
-  const invalidateReconciliation =
-    () => {
-      setReconciliationResult(
-        null
-      );
+  const commitWorkspace = (
+    updater:
+      | WorkspaceState
+      | ((current: WorkspaceState) => WorkspaceState)
+  ): WorkspaceState => {
+    const current = workspaceRef.current;
+    const nextWorkspace =
+      typeof updater === 'function'
+        ? updater(current)
+        : updater;
 
-      setReviewedExceptionKeys(
-        []
-      );
-    };
+    workspaceRef.current = nextWorkspace;
+    setWorkspace(nextWorkspace);
+
+    /*
+     * Write-through persistence:
+     * save immediately as part of the same user action instead of
+     * waiting for a later React effect. This protects the workspace
+     * even if navigation/remount happens immediately after an import,
+     * reconciliation or review change.
+     */
+    persistWorkspace(nextWorkspace);
+
+    return nextWorkspace;
+  };
 
   const setErpData = (
-    data:
-      | ImportedDataset
-      | null
+    data: ImportedDataset | null
   ) => {
-    setErpDataState(data);
-
-    invalidateReconciliation();
+    commitWorkspace((current) => ({
+      ...current,
+      erpData: data,
+      reconciliationResult: null,
+      reviewedExceptionKeys: [],
+      fieldMappings: data
+        ? {
+            ...current.fieldMappings,
+            erp: { ...data.fieldMapping },
+          }
+        : current.fieldMappings,
+    }));
   };
 
   const setCrmData = (
-    data:
-      | ImportedDataset
-      | null
+    data: ImportedDataset | null
   ) => {
-    setCrmDataState(data);
-
-    invalidateReconciliation();
+    commitWorkspace((current) => ({
+      ...current,
+      crmData: data,
+      reconciliationResult: null,
+      reviewedExceptionKeys: [],
+      fieldMappings: data
+        ? {
+            ...current.fieldMappings,
+            crm: { ...data.fieldMapping },
+          }
+        : current.fieldMappings,
+    }));
   };
 
-  const runReconciliation =
-    () => {
-      if (
-        !erpDataState ||
-        !crmDataState
-      ) {
-        return null;
-      }
+  const setFieldMapping = (
+    target: DatasetTarget,
+    mapping: FieldMapping
+  ) => {
+    commitWorkspace((current) => ({
+      ...current,
+      fieldMappings: {
+        ...current.fieldMappings,
+        [target]: { ...mapping },
+      },
+    }));
+  };
 
-      /*
-       * Any BLOCKING data-quality issue,
-       * including duplicate IDs,
-       * blocks reconciliation.
-       */
-      if (
-        hasBlockingIssues(
-          erpDataState.issues
-        ) ||
-        hasBlockingIssues(
-          crmDataState.issues
-        )
-      ) {
-        return null;
-      }
+  const resetFieldMappings = () => {
+    commitWorkspace((current) => ({
+      ...current,
+      fieldMappings: {
+        erp: { ...DEFAULT_FIELD_MAPPING },
+        crm: { ...DEFAULT_FIELD_MAPPING },
+      },
+    }));
+  };
 
-      if (
-        erpDataState.records
-          .length === 0 ||
-        crmDataState.records
-          .length === 0
-      ) {
-        return null;
-      }
+  const runReconciliation = () => {
+    const current = workspaceRef.current;
 
-      const result =
-        reconcileData(
-          erpDataState.records,
-          crmDataState.records
-        );
+    if (!current.erpData || !current.crmData) {
+      return null;
+    }
 
-      const historyEntry =
-        createReconciliationHistoryEntry(
-          result,
-          erpDataState,
-          crmDataState
-        );
+    if (
+      hasBlockingIssues(current.erpData.issues) ||
+      hasBlockingIssues(current.crmData.issues)
+    ) {
+      return null;
+    }
 
-      setReconciliationResult(
-        result
+    if (
+      current.erpData.records.length === 0 ||
+      current.crmData.records.length === 0
+    ) {
+      return null;
+    }
+
+    const result = reconcileData(
+      current.erpData.records,
+      current.crmData.records
+    );
+
+    const historyEntry =
+      createReconciliationHistoryEntry(
+        result,
+        current.erpData,
+        current.crmData
       );
 
-      setReconciliationHistory(
-        (currentHistory) =>
-          [
-            historyEntry,
-            ...currentHistory,
-          ].slice(
-            0,
-            RECONCILIATION_HISTORY_LIMIT
-          )
-      );
+    commitWorkspace({
+      ...current,
+      reconciliationResult: result,
+      reconciliationHistory: [
+        historyEntry,
+        ...current.reconciliationHistory,
+      ].slice(0, RECONCILIATION_HISTORY_LIMIT),
+      reviewedExceptionKeys: [],
+    });
 
-      /*
-       * A new reconciliation
-       * creates a new review cycle.
-       */
-      setReviewedExceptionKeys(
-        []
-      );
-
-      return result;
-    };
+    return result;
+  };
 
   const setExceptionReviewed = (
     key: string,
     reviewed: boolean
   ) => {
-    setReviewedExceptionKeys(
-      (currentKeys) => {
-        if (reviewed) {
-          if (
-            currentKeys.includes(
-              key
-            )
-          ) {
-            return currentKeys;
-          }
+    commitWorkspace((current) => {
+      let nextKeys: string[];
 
-          return [
-            ...currentKeys,
-            key,
-          ];
-        }
-
-        return currentKeys.filter(
-          (currentKey) =>
-            currentKey !== key
+      if (reviewed) {
+        nextKeys = current.reviewedExceptionKeys.includes(key)
+          ? current.reviewedExceptionKeys
+          : [...current.reviewedExceptionKeys, key];
+      } else {
+        nextKeys = current.reviewedExceptionKeys.filter(
+          (currentKey) => currentKey !== key
         );
       }
-    );
+
+      return {
+        ...current,
+        reviewedExceptionKeys: nextKeys,
+      };
+    });
   };
 
   const setExceptionsReviewed = (
     keys: string[],
     reviewed: boolean
   ) => {
-    setReviewedExceptionKeys(
-      (currentKeys) => {
-        if (reviewed) {
-          return Array.from(
+    commitWorkspace((current) => {
+      if (reviewed) {
+        return {
+          ...current,
+          reviewedExceptionKeys: Array.from(
             new Set([
-              ...currentKeys,
+              ...current.reviewedExceptionKeys,
               ...keys,
             ])
-          );
-        }
-
-        const keysToRemove =
-          new Set(keys);
-
-        return currentKeys.filter(
-          (key) =>
-            !keysToRemove.has(
-              key
-            )
-        );
+          ),
+        };
       }
-    );
+
+      const keysToRemove = new Set(keys);
+
+      return {
+        ...current,
+        reviewedExceptionKeys:
+          current.reviewedExceptionKeys.filter(
+            (key) => !keysToRemove.has(key)
+          ),
+      };
+    });
   };
 
   const deleteHistoryEntry = (
     entryId: string
   ) => {
-    setReconciliationHistory(
-      (currentHistory) =>
-        currentHistory.filter(
-          (entry) =>
-            entry.id !== entryId
-        )
-    );
+    commitWorkspace((current) => ({
+      ...current,
+      reconciliationHistory:
+        current.reconciliationHistory.filter(
+          (entry) => entry.id !== entryId
+        ),
+    }));
   };
 
   const clearHistory = () => {
-    setReconciliationHistory([]);
+    commitWorkspace((current) => ({
+      ...current,
+      reconciliationHistory: [],
+    }));
   };
 
   const clearData = () => {
-    setErpDataState(null);
-    setCrmDataState(null);
-    setReconciliationResult(null);
-    setReviewedExceptionKeys([]);
+    commitWorkspace((current) => ({
+      ...current,
+      erpData: null,
+      crmData: null,
+      reconciliationResult: null,
+      reviewedExceptionKeys: [],
+    }));
   };
 
   return (
     <ReconciliationContext.Provider
       value={{
-        erpData:
-          erpDataState,
-
-        crmData:
-          crmDataState,
-
-        reconciliationResult,
-
-        reviewedExceptionKeys,
-
-        reconciliationHistory,
-
+        erpData: workspace.erpData,
+        crmData: workspace.crmData,
+        reconciliationResult:
+          workspace.reconciliationResult,
+        reviewedExceptionKeys:
+          workspace.reviewedExceptionKeys,
+        reconciliationHistory:
+          workspace.reconciliationHistory,
+        fieldMappings: workspace.fieldMappings,
         persistenceStatus,
-
         persistenceError,
-
         lastSavedAt,
-
-        restoredFromStorage:
-          restoredWorkspace !== null,
-
+        restoredFromStorage: initialWorkspace.restored,
         setErpData,
-
         setCrmData,
-
+        setFieldMapping,
+        resetFieldMappings,
         runReconciliation,
-
         setExceptionReviewed,
-
         setExceptionsReviewed,
-
         deleteHistoryEntry,
-
         clearHistory,
-
         clearData,
       }}
     >
@@ -448,10 +454,7 @@ export function ReconciliationProvider({
 }
 
 export function useReconciliation() {
-  const context =
-    useContext(
-      ReconciliationContext
-    );
+  const context = useContext(ReconciliationContext);
 
   if (!context) {
     throw new Error(

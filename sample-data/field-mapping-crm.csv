@@ -1,0 +1,5 @@
+account_code,display_name,amount_due,lifecycle_status
+C-001,Alpha Tech,1000,Activo
+C-002,CAFE CENTRAL,2500,pendiente
+C-003,Norte Logistics,3050,Activo
+C-005,CRM Only,1200,Activo

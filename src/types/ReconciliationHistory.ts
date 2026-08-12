@@ -1,4 +1,8 @@
 import type {
+  FieldMapping,
+} from './FieldMapping';
+
+import type {
   ReconciliationSummary,
 } from './ReconciliationResult';
 
@@ -12,6 +16,7 @@ export interface ReconciliationHistoryDatasetSnapshot {
   blockingIssues: number;
   warnings: number;
   duplicateIds: number;
+  fieldMapping: FieldMapping;
 }
 
 export interface ReconciliationHistoryEntry {

@@ -17,7 +17,8 @@ export type DataQualityIssueType =
   | 'Unexpected Column'
   | 'Missing Column'
   | 'CSV Parse Error'
-  | 'Empty File';
+  | 'Empty File'
+  | 'Invalid Field Mapping';
 
 export type DataQualityField =
   | 'id'

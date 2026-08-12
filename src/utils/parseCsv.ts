@@ -1,10 +1,6 @@
 import Papa from 'papaparse';
 
 import {
-  REQUIRED_HEADERS,
-} from '../config/dataQualityConfig';
-
-import {
   reconciliationRecordSchema,
 } from '../schemas/reconciliationSchema';
 
@@ -19,6 +15,14 @@ import type {
   DuplicateIdInfo,
 } from '../types/CsvValidation';
 
+import type {
+  FieldMapping,
+} from '../types/FieldMapping';
+
+import {
+  DEFAULT_FIELD_MAPPING,
+} from '../config/fieldMappingConfig';
+
 import {
   buildDataQualitySummary,
   createSuspiciousIdIssue,
@@ -27,9 +31,16 @@ import {
   hasBlockingIssues,
 } from './dataQuality';
 
+import {
+  getMappedSourceHeaders,
+  normalizeHeaderName,
+  validateFieldMapping,
+} from './fieldMapping';
+
 export interface CsvParseResult {
   success: boolean;
-
+  headers: string[];
+  fieldMapping: FieldMapping;
   records: ReconciliationRecord[];
 
   /**
@@ -45,11 +56,8 @@ export interface CsvParseResult {
   warnings: string[];
 
   issues: DataQualityIssue[];
-
   qualitySummary: DataQualitySummary;
-
   duplicateIds: DuplicateIdInfo[];
-
   totalRows: number;
 
   /** Rows without blocking row-level issues. */
@@ -63,7 +71,6 @@ export interface CsvParseResult {
 
   /** Rows with at least one blocking or warning row-level issue. */
   rowsWithIssues: number;
-
   qualityScore: number;
 }
 
@@ -76,16 +83,14 @@ type RecordField =
   | 'estado';
 
 export function parseCsv(
-  file: File
+  file: File,
+  fieldMapping: FieldMapping = DEFAULT_FIELD_MAPPING
 ): Promise<CsvParseResult> {
   return new Promise((resolve, reject) => {
     Papa.parse<RawCsvRow>(file, {
       header: true,
-
       skipEmptyLines: 'greedy',
-
-      transformHeader: (header) =>
-        header.trim().toLowerCase(),
+      transformHeader: normalizeHeaderName,
 
       complete: (results) => {
         const records: ReconciliationRecord[] = [];
@@ -96,11 +101,23 @@ export function parseCsv(
         const blockingRows = new Set<number>();
         const warningRows = new Set<number>();
         const duplicateRows = new Set<number>();
-
         const idOccurrences = new Map<string, number[]>();
 
         const totalRows = results.data.length;
-        const headers = results.meta.fields ?? [];
+        const headers = Array.from(
+          new Set(
+            (results.meta.fields ?? [])
+              .map(normalizeHeaderName)
+              .filter(Boolean)
+          )
+        );
+
+        const normalizedMapping: FieldMapping = {
+          id: normalizeHeaderName(fieldMapping.id),
+          cliente: normalizeHeaderName(fieldMapping.cliente),
+          monto: normalizeHeaderName(fieldMapping.monto),
+          estado: normalizeHeaderName(fieldMapping.estado),
+        };
 
         const addIssue = (issue: DataQualityIssue) => {
           issues.push(issue);
@@ -117,23 +134,25 @@ export function parseCsv(
         };
 
         /*
-         * HEADER VALIDATION
+         * FIELD MAPPING VALIDATION
          */
-        const missingHeaders = REQUIRED_HEADERS.filter(
-          (requiredHeader) => !headers.includes(requiredHeader)
+        const mappingValidation = validateFieldMapping(
+          headers,
+          normalizedMapping
         );
 
-        missingHeaders.forEach((header) => {
-          addIssue({
-            type: 'Missing Column',
-            severity: 'BLOCKING',
-            message: `Missing required column: ${header}.`,
-            field: 'header',
-            value: header,
+        mappingValidation.errors
+          .filter((message) => !message.includes('does not exist in the CSV'))
+          .forEach((message) => {
+            addIssue({
+              type: 'Invalid Field Mapping',
+              severity: 'BLOCKING',
+              message,
+              field: 'header',
+            });
           });
-        });
 
-        if (missingHeaders.length > 0) {
+        if (!mappingValidation.valid) {
           for (let index = 0; index < totalRows; index += 1) {
             const rowNumber = index + 2;
             issueRows.add(rowNumber);
@@ -141,18 +160,49 @@ export function parseCsv(
           }
         }
 
+        /*
+         * HEADER VALIDATION
+         *
+         * The canonical schema remains id / cliente / monto / estado,
+         * while each source can map different CSV headers into it.
+         */
+        const requiredMappedHeaders = getMappedSourceHeaders(
+          normalizedMapping
+        );
+
+        const missingMappedHeaders = requiredMappedHeaders.filter(
+          (requiredHeader) => !headers.includes(requiredHeader)
+        );
+
+        missingMappedHeaders.forEach((header) => {
+          addIssue({
+            type: 'Missing Column',
+            severity: 'BLOCKING',
+            message: `Missing mapped source column: ${header}.`,
+            field: 'header',
+            value: header,
+          });
+        });
+
+        if (missingMappedHeaders.length > 0) {
+          for (let index = 0; index < totalRows; index += 1) {
+            const rowNumber = index + 2;
+            issueRows.add(rowNumber);
+            blockingRows.add(rowNumber);
+          }
+        }
+
+        const mappedHeaderSet = new Set(requiredMappedHeaders);
+
         const unexpectedHeaders = headers.filter(
-          (header) =>
-            !REQUIRED_HEADERS.includes(
-              header as (typeof REQUIRED_HEADERS)[number]
-            )
+          (header) => !mappedHeaderSet.has(header)
         );
 
         unexpectedHeaders.forEach((header) => {
           addIssue({
             type: 'Unexpected Column',
             severity: 'WARNING',
-            message: `Unexpected column: ${header}.`,
+            message: `Unexpected unmapped column: ${header}.`,
             field: 'header',
             value: header,
           });
@@ -193,72 +243,71 @@ export function parseCsv(
         /*
          * ROW VALIDATION
          */
-        results.data.forEach((row, index) => {
-          const rowNumber = index + 2;
-          const rawId = String(row.id ?? '');
-          const trimmedId = rawId.trim();
-
-          /*
-           * Track IDs before schema validation so duplicate
-           * detection still works when another field is invalid.
-           */
-          if (trimmedId) {
-            const currentRows = idOccurrences.get(trimmedId) ?? [];
-            currentRows.push(rowNumber);
-            idOccurrences.set(trimmedId, currentRows);
-
-            const suspiciousIdIssue = createSuspiciousIdIssue(
-              rawId,
-              rowNumber
+        if (mappingValidation.valid && missingMappedHeaders.length === 0) {
+          results.data.forEach((row, index) => {
+            const rowNumber = index + 2;
+            const canonicalRow = mapRawRowToCanonical(
+              row,
+              normalizedMapping
             );
 
-            if (suspiciousIdIssue) {
-              addIssue(suspiciousIdIssue);
-            }
-          }
+            const rawId = String(canonicalRow.id ?? '');
+            const trimmedId = rawId.trim();
 
-          const validation =
-            reconciliationRecordSchema.safeParse(row);
+            /*
+             * Track IDs before schema validation so duplicate detection
+             * still works when another canonical field is invalid.
+             */
+            if (trimmedId) {
+              const currentRows = idOccurrences.get(trimmedId) ?? [];
+              currentRows.push(rowNumber);
+              idOccurrences.set(trimmedId, currentRows);
 
-          if (!validation.success) {
-            const invalidFields = new Set<RecordField>();
-
-            validation.error.issues.forEach((issue) => {
-              const field = issue.path[0];
-
-              if (
-                field === 'id' ||
-                field === 'cliente' ||
-                field === 'monto' ||
-                field === 'estado'
-              ) {
-                invalidFields.add(field);
-              }
-            });
-
-            invalidFields.forEach((field) => {
-              if (
-                missingHeaders.includes(
-                  field as (typeof REQUIRED_HEADERS)[number]
-                )
-              ) {
-                return;
-              }
-
-              addIssue(
-                createFieldValidationIssue(
-                  field,
-                  row[field],
-                  rowNumber
-                )
+              const suspiciousIdIssue = createSuspiciousIdIssue(
+                rawId,
+                rowNumber
               );
-            });
 
-            return;
-          }
+              if (suspiciousIdIssue) {
+                addIssue(suspiciousIdIssue);
+              }
+            }
 
-          records.push(validation.data);
-        });
+            const validation =
+              reconciliationRecordSchema.safeParse(canonicalRow);
+
+            if (!validation.success) {
+              const invalidFields = new Set<RecordField>();
+
+              validation.error.issues.forEach((issue) => {
+                const field = issue.path[0];
+
+                if (
+                  field === 'id' ||
+                  field === 'cliente' ||
+                  field === 'monto' ||
+                  field === 'estado'
+                ) {
+                  invalidFields.add(field);
+                }
+              });
+
+              invalidFields.forEach((field) => {
+                addIssue(
+                  createFieldValidationIssue(
+                    field,
+                    canonicalRow[field],
+                    rowNumber
+                  )
+                );
+              });
+
+              return;
+            }
+
+            records.push(validation.data);
+          });
+        }
 
         /*
          * DUPLICATE ID DETECTION
@@ -331,6 +380,8 @@ export function parseCsv(
 
         resolve({
           success,
+          headers,
+          fieldMapping: normalizedMapping,
           records,
           errors,
           warnings,
@@ -351,6 +402,18 @@ export function parseCsv(
       },
     });
   });
+}
+
+function mapRawRowToCanonical(
+  row: RawCsvRow,
+  mapping: FieldMapping
+): Record<RecordField, string> {
+  return {
+    id: String(row[mapping.id] ?? ''),
+    cliente: String(row[mapping.cliente] ?? ''),
+    monto: String(row[mapping.monto] ?? ''),
+    estado: String(row[mapping.estado] ?? ''),
+  };
 }
 
 function createFieldValidationIssue(
