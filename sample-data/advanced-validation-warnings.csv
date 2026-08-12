@@ -1,0 +1,6 @@
+id,cliente,monto,estado,source_note
+A1,Medical Solutions CR,120000,Activo,legacy short id
+" CRM 001 ",Café Central,84500,ACTIVO,spaces around id
+ABC#001,Logistics CR,50000,Pendiente,unusual id character
+CUS-10025,Northwind CR,25000,Inactivo,clean id
+ACC_0054,Pacific Systems,91000,Activo,clean id

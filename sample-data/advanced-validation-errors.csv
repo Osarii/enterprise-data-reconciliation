@@ -1,0 +1,10 @@
+id,cliente,monto,estado
+CUS-10025,Medical Solutions CR,120000,Activo
+DUP-001,Alpha Systems,50000,Activo
+DUP-001,Beta Systems,51000,Inactivo
+ERR-004,Gamma Systems,abc,Activo
+ERR-005,Delta Systems,-100,Activo
+ERR-006,Epsilon Systems,500,Cancelado
+A1,,500,Pendiente
+ERR#008,Zeta Systems,700,Activo
+,Eta Systems,900,Activo

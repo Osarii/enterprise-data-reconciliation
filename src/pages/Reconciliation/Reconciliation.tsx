@@ -31,6 +31,10 @@ import {
   useReconciliation,
 } from '../../context/ReconciliationContext';
 
+import {
+  hasBlockingIssues,
+} from '../../utils/dataQuality';
+
 import type {
   ComparableField,
   MatchType,
@@ -73,10 +77,12 @@ export default function Reconciliation() {
   const datasetsReady =
     erpData !== null &&
     crmData !== null &&
-    erpData.errors.length ===
-      0 &&
-    crmData.errors.length ===
-      0 &&
+    !hasBlockingIssues(
+      erpData.issues
+    ) &&
+    !hasBlockingIssues(
+      crmData.issues
+    ) &&
     erpData.records.length >
       0 &&
     crmData.records.length >

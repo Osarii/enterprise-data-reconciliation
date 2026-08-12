@@ -49,6 +49,10 @@ import { autoTable } from 'jspdf-autotable';
 
 import { useReconciliation } from '../../context/ReconciliationContext';
 
+import {
+  hasBlockingIssues,
+} from '../../utils/dataQuality';
+
 import type { ReconciliationResult } from '../../types/ReconciliationResult';
 
 type ReportStatus =
@@ -148,8 +152,8 @@ export default function Reports() {
   const datasetsReady =
     erpData !== null &&
     crmData !== null &&
-    erpData.errors.length === 0 &&
-    crmData.errors.length === 0;
+    !hasBlockingIssues(erpData.issues) &&
+    !hasBlockingIssues(crmData.issues);
 
   const exceptionRecordCount =
     useMemo(() => {
@@ -545,6 +549,66 @@ export default function Reports() {
           </Box>
         </CardContent>
       </Card>
+
+      {/* DATA QUALITY */}
+      <Box
+        sx={{
+          display: 'grid',
+
+          gridTemplateColumns: {
+            xs: '1fr',
+            md: '1fr 1fr',
+          },
+
+          gap: 2,
+
+          mb: 3,
+        }}
+      >
+        <DatasetQualityCard
+          title="ERP Data Quality"
+          score={
+            erpData?.qualityScore ??
+            0
+          }
+          blocking={
+            erpData
+              ?.qualitySummary
+              .blockingIssues ?? 0
+          }
+          warnings={
+            erpData
+              ?.qualitySummary
+              .warnings ?? 0
+          }
+          rowsWithIssues={
+            erpData
+              ?.rowsWithIssues ?? 0
+          }
+        />
+
+        <DatasetQualityCard
+          title="CRM Data Quality"
+          score={
+            crmData?.qualityScore ??
+            0
+          }
+          blocking={
+            crmData
+              ?.qualitySummary
+              .blockingIssues ?? 0
+          }
+          warnings={
+            crmData
+              ?.qualitySummary
+              .warnings ?? 0
+          }
+          rowsWithIssues={
+            crmData
+              ?.rowsWithIssues ?? 0
+          }
+        />
+      </Box>
 
       {/* HEALTH */}
       <Card
@@ -1633,6 +1697,197 @@ function MetadataItem({
           {secondary}
         </Typography>
       </Box>
+    </Box>
+  );
+}
+
+interface DatasetQualityCardProps {
+  title: string;
+  score: number;
+  blocking: number;
+  warnings: number;
+  rowsWithIssues: number;
+}
+
+function DatasetQualityCard({
+  title,
+  score,
+  blocking,
+  warnings,
+  rowsWithIssues,
+}: DatasetQualityCardProps) {
+  return (
+    <Card>
+      <CardContent
+        sx={{
+          p: '22px !important',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+
+            justifyContent:
+              'space-between',
+
+            alignItems:
+              'flex-start',
+
+            gap: 2,
+          }}
+        >
+          <Box>
+            <Typography
+              sx={{
+                color:
+                  'text.secondary',
+
+                fontSize:
+                  '0.7rem',
+
+                fontWeight: 600,
+
+                textTransform:
+                  'uppercase',
+
+                letterSpacing:
+                  '0.05em',
+              }}
+            >
+              {title}
+            </Typography>
+
+            <Typography
+              sx={{
+                fontSize:
+                  '1.65rem',
+
+                fontWeight: 700,
+
+                letterSpacing:
+                  '-0.03em',
+
+                mt: 0.5,
+              }}
+            >
+              {score.toFixed(1)}%
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+
+              borderRadius:
+                '12px',
+
+              display: 'flex',
+
+              alignItems:
+                'center',
+
+              justifyContent:
+                'center',
+
+              color: '#0071E3',
+
+              backgroundColor:
+                'rgba(0,113,227,0.08)',
+            }}
+          >
+            <ShieldCheck
+              size={19}
+            />
+          </Box>
+        </Box>
+
+        <Box
+          sx={{
+            display: 'grid',
+
+            gridTemplateColumns:
+              'repeat(3, 1fr)',
+
+            gap: 1.5,
+
+            mt: 2,
+          }}
+        >
+          <QualityMiniMetric
+            label="Blocking"
+            value={blocking}
+          />
+
+          <QualityMiniMetric
+            label="Warnings"
+            value={warnings}
+          />
+
+          <QualityMiniMetric
+            label="Rows affected"
+            value={rowsWithIssues}
+          />
+        </Box>
+
+        <Typography
+          sx={{
+            color:
+              'text.secondary',
+
+            fontSize:
+              '0.65rem',
+
+            lineHeight: 1.45,
+
+            mt: 1.75,
+          }}
+        >
+          Application-defined
+          Data Quality Score V2.
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface QualityMiniMetricProps {
+  label: string;
+  value: number;
+}
+
+function QualityMiniMetric({
+  label,
+  value,
+}: QualityMiniMetricProps) {
+  return (
+    <Box>
+      <Typography
+        sx={{
+          color:
+            'text.secondary',
+
+          fontSize:
+            '0.64rem',
+
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </Typography>
+
+      <Typography
+        sx={{
+          fontSize:
+            '0.95rem',
+
+          fontWeight: 700,
+
+          mt: 0.3,
+        }}
+      >
+        {value.toLocaleString()}
+      </Typography>
     </Box>
   );
 }

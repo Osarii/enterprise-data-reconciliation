@@ -37,6 +37,10 @@ import {
 } from '../../utils/parseCsv';
 
 import {
+  hasBlockingIssues,
+} from '../../utils/dataQuality';
+
+import {
   useReconciliation,
   type ImportedDataset,
 } from '../../context/ReconciliationContext';
@@ -122,6 +126,12 @@ export default function Imports() {
           warnings:
             result.warnings,
 
+          issues:
+            result.issues,
+
+          qualitySummary:
+            result.qualitySummary,
+
           duplicateIds:
             result.duplicateIds,
 
@@ -133,6 +143,12 @@ export default function Imports() {
 
           invalidRows:
             result.invalidRows,
+
+          cleanRows:
+            result.cleanRows,
+
+          rowsWithIssues:
+            result.rowsWithIssues,
 
           qualityScore:
             result.qualityScore,
@@ -209,10 +225,12 @@ export default function Imports() {
 
   const bothValid =
     bothLoaded &&
-    erpData.errors.length ===
-      0 &&
-    crmData.errors.length ===
-      0;
+    !hasBlockingIssues(
+      erpData.issues
+    ) &&
+    !hasBlockingIssues(
+      crmData.issues
+    );
 
   return (
     <Box>
@@ -421,7 +439,9 @@ function ImportCard({
 
   const isValid =
     dataset !== null &&
-    dataset.errors.length === 0;
+    !hasBlockingIssues(
+      dataset.issues
+    );
 
   return (
     <Card>
@@ -877,6 +897,62 @@ function ImportCard({
                 }}
               >
                 <QualityMetric
+                  label="Blocking Issues"
+                  value={
+                    dataset
+                      .qualitySummary
+                      .blockingIssues
+                  }
+                />
+
+                <QualityMetric
+                  label="Warnings"
+                  value={
+                    dataset
+                      .qualitySummary
+                      .warnings
+                  }
+                />
+
+                <QualityMetric
+                  label="Duplicate IDs"
+                  value={
+                    dataset
+                      .qualitySummary
+                      .duplicateIds
+                  }
+                />
+
+                <QualityMetric
+                  label="Invalid Values"
+                  value={
+                    dataset
+                      .qualitySummary
+                      .invalidValues
+                  }
+                />
+              </Box>
+
+              <Divider
+                sx={{
+                  my: 2.25,
+                }}
+              />
+
+              <Box
+                sx={{
+                  display: 'grid',
+
+                  gridTemplateColumns:
+                    {
+                      xs: '1fr 1fr',
+                      md: 'repeat(3, 1fr)',
+                    },
+
+                  gap: 1.5,
+                }}
+              >
+                <QualityMetric
                   label="Total Rows"
                   value={
                     dataset.totalRows
@@ -886,26 +962,155 @@ function ImportCard({
                 <QualityMetric
                   label="Clean Rows"
                   value={
-                    dataset.validRows
+                    dataset.cleanRows
                   }
                 />
 
                 <QualityMetric
                   label="Rows With Issues"
                   value={
-                    dataset.invalidRows
-                  }
-                />
-
-                <QualityMetric
-                  label="Duplicate IDs"
-                  value={
-                    dataset
-                      .duplicateIds
-                      .length
+                    dataset.rowsWithIssues
                   }
                 />
               </Box>
+
+              {dataset
+                .qualitySummary
+                .issueBreakdown
+                .length > 0 && (
+                <Box
+                  sx={{
+                    mt: 2.5,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize:
+                        '0.72rem',
+
+                      fontWeight:
+                        700,
+
+                      mb: 1,
+                    }}
+                  >
+                    Issue Breakdown
+                  </Typography>
+
+                  <Box
+                    sx={{
+                      display:
+                        'grid',
+
+                      gap: 0.65,
+                    }}
+                  >
+                    {dataset.qualitySummary.issueBreakdown.map(
+                      (item) => (
+                        <Box
+                          key={
+                            item.type
+                          }
+                          sx={{
+                            display:
+                              'flex',
+
+                            justifyContent:
+                              'space-between',
+
+                            alignItems:
+                              'center',
+
+                            gap: 2,
+
+                            py: 0.55,
+
+                            borderBottom:
+                              '1px solid rgba(0,0,0,0.045)',
+
+                            '&:last-child':
+                              {
+                                borderBottom:
+                                  'none',
+                              },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display:
+                                'flex',
+
+                              alignItems:
+                                'center',
+
+                              gap: 1,
+                            }}
+                          >
+                            <Typography
+                              sx={{
+                                fontSize:
+                                  '0.72rem',
+
+                                fontWeight:
+                                  600,
+                              }}
+                            >
+                              {
+                                item.type
+                              }
+                            </Typography>
+
+                            <Chip
+                              size="small"
+                              label={
+                                item.blockingCount >
+                                0
+                                  ? 'Blocking'
+                                  : 'Warning'
+                              }
+                              sx={{
+                                height: 20,
+
+                                fontSize:
+                                  '0.6rem',
+
+                                fontWeight:
+                                  600,
+
+                                color:
+                                  item.blockingCount >
+                                  0
+                                    ? '#D70015'
+                                    : '#9A6700',
+
+                                backgroundColor:
+                                  item.blockingCount >
+                                  0
+                                    ? 'rgba(215,0,21,0.07)'
+                                    : 'rgba(154,103,0,0.08)',
+                              }}
+                            />
+                          </Box>
+
+                          <Typography
+                            sx={{
+                              fontSize:
+                                '0.76rem',
+
+                              fontWeight:
+                                700,
+                            }}
+                          >
+                            {
+                              item.count
+                            }
+                          </Typography>
+                        </Box>
+                      )
+                    )}
+                  </Box>
+                </Box>
+              )}
 
               <Typography
                 sx={{
@@ -921,11 +1126,15 @@ function ImportCard({
                   mt: 2,
                 }}
               >
-                Quality score is
-                calculated as rows
-                without blocking
-                issues divided by
-                total data rows.
+                Score V2 is an
+                application-defined
+                weighted model:
+                blocking row issues
+                have the strongest
+                impact, warnings have
+                a smaller impact, and
+                duplicate rows receive
+                an additional penalty.
               </Typography>
             </Box>
 

@@ -18,8 +18,14 @@ import type {
 } from '../types/ReconciliationResult';
 
 import type {
+  DataQualityIssue,
+  DataQualitySummary,
   DuplicateIdInfo,
 } from '../types/CsvValidation';
+
+import {
+  hasBlockingIssues,
+} from '../utils/dataQuality';
 
 export interface ImportedDataset {
   fileName: string;
@@ -32,6 +38,10 @@ export interface ImportedDataset {
 
   warnings: string[];
 
+  issues: DataQualityIssue[];
+
+  qualitySummary: DataQualitySummary;
+
   duplicateIds: DuplicateIdInfo[];
 
   totalRows: number;
@@ -39,6 +49,10 @@ export interface ImportedDataset {
   validRows: number;
 
   invalidRows: number;
+
+  cleanRows: number;
+
+  rowsWithIssues: number;
 
   qualityScore: number;
 }
@@ -172,15 +186,17 @@ export function ReconciliationProvider({
       }
 
       /*
-       * Any validation error,
+       * Any BLOCKING data-quality issue,
        * including duplicate IDs,
        * blocks reconciliation.
        */
       if (
-        erpDataState.errors
-          .length > 0 ||
-        crmDataState.errors
-          .length > 0
+        hasBlockingIssues(
+          erpDataState.issues
+        ) ||
+        hasBlockingIssues(
+          crmDataState.issues
+        )
       ) {
         return null;
       }
