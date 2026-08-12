@@ -66,8 +66,9 @@ export default function Sidebar() {
         '& .MuiDrawer-paper': {
           width: drawerWidth,
           boxSizing: 'border-box',
-          borderRight: '1px solid rgba(0,0,0,0.06)',
-          backgroundColor: '#FFFFFF',
+          borderRight: '1px solid',
+          borderColor: 'divider',
+          backgroundColor: 'background.paper',
           padding: '20px 14px',
         },
       }}
@@ -86,7 +87,7 @@ export default function Sidebar() {
             width: 38,
             height: 38,
             borderRadius: '12px',
-            backgroundColor: '#0071E3',
+            backgroundColor: 'primary.main',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -131,7 +132,13 @@ export default function Sidebar() {
         WORKSPACE
       </Typography>
 
-      <List sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      <List
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.5,
+        }}
+      >
         {menuItems.map((item) => {
           const Icon = item.icon;
 
@@ -145,20 +152,19 @@ export default function Sidebar() {
                 borderRadius: '12px',
                 minHeight: 44,
                 px: 1.5,
-
                 color: 'text.secondary',
 
                 '&.active': {
-                  backgroundColor: 'rgba(0,113,227,0.08)',
-                  color: '#0071E3',
+                  backgroundColor: 'var(--primary-soft)',
+                  color: 'primary.main',
 
                   '& .MuiListItemIcon-root': {
-                    color: '#0071E3',
+                    color: 'primary.main',
                   },
                 },
 
                 '&:hover': {
-                  backgroundColor: 'rgba(0,0,0,0.035)',
+                  backgroundColor: 'action.hover',
                 },
               }}
             >
@@ -172,16 +178,16 @@ export default function Sidebar() {
               </ListItemIcon>
 
               <ListItemText
-                        primary={item.label}
-                        slotProps={{
-                            primary: {
-                            sx: {
-                                fontSize: '0.88rem',
-                                fontWeight: 500,
-                            },
-                            },
-                        }}
-                        />
+                primary={item.label}
+                slotProps={{
+                  primary: {
+                    sx: {
+                      fontSize: '0.88rem',
+                      fontWeight: 500,
+                    },
+                  },
+                }}
+              />
             </ListItemButton>
           );
         })}

@@ -236,7 +236,7 @@ export default function Exceptions() {
                   color: '#0071E3',
 
                   backgroundColor:
-                    'rgba(0,113,227,0.08)',
+                    'var(--primary-soft)',
 
                   mb: 2,
                 }}
@@ -617,7 +617,7 @@ export default function Exceptions() {
                 >
                   <Search
                     size={30}
-                    color="#6E6E73"
+                    color="var(--neutral-fg)"
                   />
 
                   <Typography
@@ -893,23 +893,23 @@ function SummaryCard({
     type === 'reviewed'
       ? {
           backgroundColor:
-            '#EAF7EE',
+            'var(--success-soft)',
 
-          color: '#248A3D',
+          color: 'var(--success-fg)',
         }
       : type ===
           'pending'
         ? {
             backgroundColor:
-              '#FFF1E8',
+              'var(--warning-soft)',
 
-            color: '#A64B00',
+            color: 'var(--warning-fg)',
           }
         : {
             backgroundColor:
-              '#EAF2FF',
+              'var(--info-soft)',
 
-            color: '#0066CC',
+            color: 'var(--info-fg)',
           };
 
   return (
@@ -1012,26 +1012,26 @@ function ExceptionChip({
     status === 'Difference'
       ? {
           backgroundColor:
-            '#FFF1E8',
+            'var(--warning-soft)',
 
           color:
-            '#A64B00',
+            'var(--warning-fg)',
         }
       : status ===
           'Only ERP'
         ? {
             backgroundColor:
-              '#EAF2FF',
+              'var(--info-soft)',
 
             color:
-              '#0066CC',
+              'var(--info-fg)',
           }
         : {
             backgroundColor:
-              '#F2EBFF',
+              'var(--purple-soft)',
 
             color:
-              '#7C3AED',
+              'var(--purple-fg)',
           };
 
   return (
@@ -1068,13 +1068,13 @@ function ReviewChip({
       sx={{
         backgroundColor:
           reviewed
-            ? '#EAF7EE'
-            : '#F2F2F7',
+            ? 'var(--success-soft)'
+            : 'var(--surface-muted)',
 
         color:
           reviewed
-            ? '#248A3D'
-            : '#6E6E73',
+            ? 'var(--success-fg)'
+            : 'var(--neutral-fg)',
 
         fontSize:
           '0.7rem',

@@ -1,10 +1,21 @@
-import { Box } from '@mui/material';
+import {
+  Alert,
+  Box,
+} from '@mui/material';
+
 import { Outlet } from 'react-router-dom';
 
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
 
+import { useReconciliation } from '../context/ReconciliationContext';
+
 export default function MainLayout() {
+  const {
+    persistenceStatus,
+    persistenceError,
+  } = useReconciliation();
+
   return (
     <Box
       sx={{
@@ -32,6 +43,15 @@ export default function MainLayout() {
             },
           }}
         >
+          {persistenceStatus === 'error' && persistenceError && (
+            <Alert
+              severity="warning"
+              sx={{ mb: 2.5 }}
+            >
+              {persistenceError}
+            </Alert>
+          )}
+
           <Outlet />
         </Box>
       </Box>

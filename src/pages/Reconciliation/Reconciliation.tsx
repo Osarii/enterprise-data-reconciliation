@@ -127,7 +127,7 @@ export default function Reconciliation() {
                     'center',
 
                   backgroundColor:
-                    'rgba(0,113,227,0.08)',
+                    'var(--primary-soft)',
 
                   color:
                     '#0071E3',
@@ -399,10 +399,10 @@ export default function Reconciliation() {
               )}% match rate`}
               sx={{
                 backgroundColor:
-                  '#EAF7EE',
+                  'var(--success-soft)',
 
                 color:
-                  '#248A3D',
+                  'var(--success-fg)',
 
                 fontWeight: 600,
               }}
@@ -556,10 +556,10 @@ export default function Reconciliation() {
                   label={`${reconciliationResult.matched.length} matched`}
                   sx={{
                     backgroundColor:
-                      '#F2F2F7',
+                      'var(--surface-muted)',
 
                     color:
-                      '#6E6E73',
+                      'var(--neutral-fg)',
 
                     fontWeight:
                       600,
@@ -706,10 +706,10 @@ export default function Reconciliation() {
                                           )}
                                           sx={{
                                             backgroundColor:
-                                              '#EEF6FF',
+                                              'var(--info-soft-alt)',
 
                                             color:
-                                              '#0066CC',
+                                              'var(--info-fg)',
 
                                             fontSize:
                                               '0.67rem',
@@ -1046,10 +1046,10 @@ function DatasetCard({
             label="Ready"
             sx={{
               backgroundColor:
-                '#EAF7EE',
+                'var(--success-soft)',
 
               color:
-                '#248A3D',
+                'var(--success-fg)',
 
               fontWeight: 600,
 
@@ -1239,13 +1239,13 @@ function MatchChip({
       sx={{
         backgroundColor:
           normalized
-            ? '#EEF6FF'
-            : '#EAF7EE',
+            ? 'var(--info-soft-alt)'
+            : 'var(--success-soft)',
 
         color:
           normalized
-            ? '#0066CC'
-            : '#248A3D',
+            ? 'var(--info-fg)'
+            : 'var(--success-fg)',
 
         fontSize:
           '0.68rem',
@@ -1272,26 +1272,26 @@ function ExceptionChip({
     'Difference'
       ? {
           backgroundColor:
-            '#FFF1E8',
+            'var(--warning-soft)',
 
           color:
-            '#A64B00',
+            'var(--warning-fg)',
         }
       : status ===
           'Only ERP'
         ? {
             backgroundColor:
-              '#EAF2FF',
+              'var(--info-soft)',
 
             color:
-              '#0066CC',
+              'var(--info-fg)',
           }
         : {
             backgroundColor:
-              '#F2EBFF',
+              'var(--purple-soft)',
 
             color:
-              '#7C3AED',
+              'var(--purple-fg)',
           };
 
   return (
@@ -1317,55 +1317,55 @@ function getResultCardStyle(
     case 'exact':
       return {
         backgroundColor:
-          '#EAF7EE',
+          'var(--success-soft)',
 
         color:
-          '#248A3D',
+          'var(--success-fg)',
       };
 
     case 'normalized':
       return {
         backgroundColor:
-          '#EEF6FF',
+          'var(--info-soft-alt)',
 
         color:
-          '#0066CC',
+          'var(--info-fg)',
       };
 
     case 'difference':
       return {
         backgroundColor:
-          '#FFF1E8',
+          'var(--warning-soft)',
 
         color:
-          '#A64B00',
+          'var(--warning-fg)',
       };
 
     case 'erp':
       return {
         backgroundColor:
-          '#EAF2FF',
+          'var(--info-soft)',
 
         color:
-          '#0066CC',
+          'var(--info-fg)',
       };
 
     case 'crm':
       return {
         backgroundColor:
-          '#F2EBFF',
+          'var(--purple-soft)',
 
         color:
-          '#7C3AED',
+          'var(--purple-fg)',
       };
 
     default:
       return {
         backgroundColor:
-          '#F2F2F7',
+          'var(--surface-muted)',
 
         color:
-          '#6E6E73',
+          'var(--neutral-fg)',
       };
   }
 }

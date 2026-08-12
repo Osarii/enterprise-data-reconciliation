@@ -1,6 +1,8 @@
 import {
   createContext,
   useContext,
+  useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -10,52 +12,30 @@ import {
 } from '../utils/reconcileData';
 
 import type {
-  ReconciliationRecord,
-} from '../types/ReconciliationRecord';
-
-import type {
   ReconciliationResult,
 } from '../types/ReconciliationResult';
 
 import type {
-  DataQualityIssue,
-  DataQualitySummary,
-  DuplicateIdInfo,
-} from '../types/CsvValidation';
+  ImportedDataset,
+} from '../types/ImportedDataset';
+
+export type {
+  ImportedDataset,
+} from '../types/ImportedDataset';
 
 import {
   hasBlockingIssues,
 } from '../utils/dataQuality';
 
-export interface ImportedDataset {
-  fileName: string;
+import {
+  clearPersistedWorkspace,
+  loadWorkspace,
+  saveWorkspace,
+} from '../utils/workspacePersistence';
 
-  fileSize: number;
-
-  records: ReconciliationRecord[];
-
-  errors: string[];
-
-  warnings: string[];
-
-  issues: DataQualityIssue[];
-
-  qualitySummary: DataQualitySummary;
-
-  duplicateIds: DuplicateIdInfo[];
-
-  totalRows: number;
-
-  validRows: number;
-
-  invalidRows: number;
-
-  cleanRows: number;
-
-  rowsWithIssues: number;
-
-  qualityScore: number;
-}
+export type WorkspacePersistenceStatus =
+  | 'saved'
+  | 'error';
 
 interface ReconciliationContextType {
   erpData:
@@ -72,6 +52,18 @@ interface ReconciliationContextType {
 
   reviewedExceptionKeys:
     string[];
+
+  persistenceStatus: WorkspacePersistenceStatus;
+
+  persistenceError:
+    | string
+    | null;
+
+  lastSavedAt:
+    | string
+    | null;
+
+  restoredFromStorage: boolean;
 
   setErpData: (
     data:
@@ -115,13 +107,19 @@ interface ReconciliationProviderProps {
 export function ReconciliationProvider({
   children,
 }: ReconciliationProviderProps) {
+  const [restoredWorkspace] = useState(
+    () => loadWorkspace()
+  );
+
   const [
     erpDataState,
     setErpDataState,
   ] =
     useState<
       ImportedDataset | null
-    >(null);
+    >(
+      restoredWorkspace?.erpData ?? null
+    );
 
   const [
     crmDataState,
@@ -129,7 +127,9 @@ export function ReconciliationProvider({
   ] =
     useState<
       ImportedDataset | null
-    >(null);
+    >(
+      restoredWorkspace?.crmData ?? null
+    );
 
   const [
     reconciliationResult,
@@ -137,13 +137,64 @@ export function ReconciliationProvider({
   ] =
     useState<
       ReconciliationResult | null
-    >(null);
+    >(
+      restoredWorkspace?.reconciliationResult ?? null
+    );
 
   const [
     reviewedExceptionKeys,
     setReviewedExceptionKeys,
-  ] =
-    useState<string[]>([]);
+  ] = useState<string[]>(
+    restoredWorkspace?.reviewedExceptionKeys ?? []
+  );
+
+  const [
+    persistenceStatus,
+    setPersistenceStatus,
+  ] = useState<WorkspacePersistenceStatus>('saved');
+
+  const [
+    persistenceError,
+    setPersistenceError,
+  ] = useState<string | null>(null);
+
+  const [
+    lastSavedAt,
+    setLastSavedAt,
+  ] = useState<string | null>(
+    restoredWorkspace?.savedAt ?? null
+  );
+
+  const skipNextPersistenceRef = useRef(false);
+
+  useEffect(() => {
+    if (skipNextPersistenceRef.current) {
+      skipNextPersistenceRef.current = false;
+      return;
+    }
+
+    const persistenceResult = saveWorkspace({
+      erpData: erpDataState,
+      crmData: crmDataState,
+      reconciliationResult,
+      reviewedExceptionKeys,
+    });
+
+    if (persistenceResult.success) {
+      setPersistenceStatus('saved');
+      setPersistenceError(null);
+      setLastSavedAt(persistenceResult.savedAt);
+      return;
+    }
+
+    setPersistenceStatus('error');
+    setPersistenceError(persistenceResult.error);
+  }, [
+    erpDataState,
+    crmDataState,
+    reconciliationResult,
+    reviewedExceptionKeys,
+  ]);
 
   const invalidateReconciliation =
     () => {
@@ -289,16 +340,25 @@ export function ReconciliationProvider({
   };
 
   const clearData = () => {
+    skipNextPersistenceRef.current = true;
+
     setErpDataState(null);
-
     setCrmDataState(null);
+    setReconciliationResult(null);
+    setReviewedExceptionKeys([]);
 
-    setReconciliationResult(
-      null
-    );
+    const cleared = clearPersistedWorkspace();
 
-    setReviewedExceptionKeys(
-      []
+    if (cleared) {
+      setPersistenceStatus('saved');
+      setPersistenceError(null);
+      setLastSavedAt(null);
+      return;
+    }
+
+    setPersistenceStatus('error');
+    setPersistenceError(
+      'The in-memory workspace was cleared, but browser storage could not be cleared.'
     );
   };
 
@@ -314,6 +374,15 @@ export function ReconciliationProvider({
         reconciliationResult,
 
         reviewedExceptionKeys,
+
+        persistenceStatus,
+
+        persistenceError,
+
+        lastSavedAt,
+
+        restoredFromStorage:
+          restoredWorkspace !== null,
 
         setErpData,
 

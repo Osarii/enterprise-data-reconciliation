@@ -1,0 +1,5 @@
+id,cliente,monto,estado
+CUS-20001,Northstar Tech,100000,Activo
+CUS-20002,CAFE CENTRAL,85000,pendiente
+CUS-20003,Logistics CR,71000,Inactivo
+CUS-20005,Omega Labs,65000,Activo

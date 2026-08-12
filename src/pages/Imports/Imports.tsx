@@ -481,7 +481,7 @@ function ImportCard({
                   '13px',
 
                 backgroundColor:
-                  'rgba(0,113,227,0.08)',
+                  'var(--primary-soft)',
 
                 color:
                   '#0071E3',
@@ -572,7 +572,7 @@ function ImportCard({
             border:
               dragging
                 ? '2px dashed #0071E3'
-                : '1px dashed rgba(0,0,0,0.18)',
+                : '1px dashed var(--border-dashed)',
 
             borderRadius:
               '16px',
@@ -586,8 +586,8 @@ function ImportCard({
 
             backgroundColor:
               dragging
-                ? 'rgba(0,113,227,0.035)'
-                : '#FAFAFC',
+                ? 'var(--primary-soft)'
+                : 'var(--surface-subtle)',
 
             transition:
               'all 0.2s ease',
@@ -698,7 +698,7 @@ function ImportCard({
               >
                 <FileSpreadsheet
                   size={19}
-                  color="#6E6E73"
+                  color="var(--neutral-fg)"
                 />
 
                 <Box>
@@ -755,13 +755,13 @@ function ImportCard({
                 sx={{
                   backgroundColor:
                     isValid
-                      ? '#EAF7EE'
-                      : '#FFF1E8',
+                      ? 'var(--success-soft)'
+                      : 'var(--warning-soft)',
 
                   color:
                     isValid
-                      ? '#248A3D'
-                      : '#A64B00',
+                      ? 'var(--success-fg)'
+                      : 'var(--warning-fg)',
 
                   fontWeight: 600,
 
@@ -785,10 +785,10 @@ function ImportCard({
                   '16px',
 
                 backgroundColor:
-                  '#FAFAFC',
+                  'var(--surface-subtle)',
 
                 border:
-                  '1px solid rgba(0,0,0,0.05)',
+                  '1px solid var(--border-faint)',
               }}
             >
               <Box
@@ -866,7 +866,7 @@ function ImportCard({
                     '999px',
 
                   backgroundColor:
-                    '#E8E8ED',
+                    'var(--surface-strong)',
 
                   '& .MuiLinearProgress-bar':
                     {
@@ -1026,7 +1026,7 @@ function ImportCard({
                             py: 0.55,
 
                             borderBottom:
-                              '1px solid rgba(0,0,0,0.045)',
+                              '1px solid var(--border-soft)',
 
                             '&:last-child':
                               {
@@ -1080,14 +1080,14 @@ function ImportCard({
                                 color:
                                   item.blockingCount >
                                   0
-                                    ? '#D70015'
-                                    : '#9A6700',
+                                    ? 'var(--danger-fg)'
+                                    : 'var(--warning-fg)',
 
                                 backgroundColor:
                                   item.blockingCount >
                                   0
-                                    ? 'rgba(215,0,21,0.07)'
-                                    : 'rgba(154,103,0,0.08)',
+                                    ? 'var(--danger-soft)'
+                                    : 'var(--warning-yellow-soft)',
                               }}
                             />
                           </Box>
@@ -1168,12 +1168,12 @@ function ImportCard({
                     p: 2,
 
                     backgroundColor:
-                      '#FFF8F2',
+                      'var(--warning-soft-alt)',
                   }}
                 >
                   <Copy
                     size={17}
-                    color="#A64B00"
+                    color="var(--warning-fg)"
                   />
 
                   <Box>
@@ -1186,7 +1186,7 @@ function ImportCard({
                           600,
 
                         color:
-                          '#A64B00',
+                          'var(--warning-fg)',
                       }}
                     >
                       Duplicate IDs
@@ -1238,7 +1238,7 @@ function ImportCard({
                           py: 0.75,
 
                           borderBottom:
-                            '1px solid rgba(0,0,0,0.05)',
+                            '1px solid var(--border-faint)',
 
                           '&:last-child':
                             {
@@ -1299,7 +1299,7 @@ function ImportCard({
                       '0.78rem',
 
                     color:
-                      '#D70015',
+                      'var(--danger-fg)',
 
                     mb: 1,
                   }}
@@ -1389,7 +1389,7 @@ function ImportCard({
                       '0.78rem',
 
                     color:
-                      '#9A6700',
+                      'var(--warning-fg)',
 
                     mb: 1,
                   }}
@@ -1467,7 +1467,7 @@ function ImportCard({
                       'auto',
 
                     border:
-                      '1px solid rgba(0,0,0,0.06)',
+                      '1px solid var(--border-subtle)',
 
                     borderRadius:
                       '12px',
@@ -1593,14 +1593,14 @@ function getQualityColor(
   score: number
 ): string {
   if (score >= 95) {
-    return '#248A3D';
+    return 'var(--success-fg)';
   }
 
   if (score >= 80) {
-    return '#9A6700';
+    return 'var(--warning-fg)';
   }
 
-  return '#D70015';
+  return 'var(--danger-fg)';
 }
 
 function formatFileSize(

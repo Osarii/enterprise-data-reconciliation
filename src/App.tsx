@@ -6,16 +6,11 @@ import {
 import MainLayout from './layouts/MainLayout';
 
 import Dashboard from './pages/Dashboard/Dashboard';
-
 import Imports from './pages/Imports/Imports';
-
 import Reconciliation from './pages/Reconciliation/Reconciliation';
-
 import Exceptions from './pages/Exceptions/Exceptions';
-
 import Reports from './pages/Reports/Reports';
-
-import PlaceholderPage from './pages/PlaceholderPage';
+import Settings from './pages/Settings/Settings';
 
 function App() {
   return (
@@ -52,9 +47,7 @@ function App() {
 
         <Route
           path="/settings"
-          element={
-            <PlaceholderPage title="Settings" />
-          }
+          element={<Settings />}
         />
       </Route>
     </Routes>

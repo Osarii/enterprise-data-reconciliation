@@ -360,7 +360,7 @@ export default function Dashboard() {
                   <Icon
                     size={18}
                     strokeWidth={1.7}
-                    color="#6E6E73"
+                    color="var(--neutral-fg)"
                   />
                 </Box>
 
@@ -496,7 +496,7 @@ export default function Dashboard() {
                   pb: 1.5,
 
                   borderBottom:
-                    '1px solid rgba(0,0,0,0.06)',
+                    '1px solid var(--border-subtle)',
                 }}
               >
                 {[
@@ -570,7 +570,7 @@ export default function Dashboard() {
 
                           '&:hover': {
                             backgroundColor:
-                              '#F8F8FA',
+                              'var(--surface-subtle)',
                           },
                         }}
                       >
@@ -762,12 +762,12 @@ function DatasetStatusCard({
             }
             sx={{
               backgroundColor: valid
-                ? '#EAF7EE'
-                : '#F2F2F7',
+                ? 'var(--success-soft)'
+                : 'var(--surface-muted)',
 
               color: valid
-                ? '#248A3D'
-                : '#6E6E73',
+                ? 'var(--success-fg)'
+                : 'var(--neutral-fg)',
 
               fontSize: '0.7rem',
               fontWeight: 600,
@@ -797,9 +797,9 @@ function EmptyResults({
         px: 3,
         textAlign: 'center',
         borderRadius: '16px',
-        backgroundColor: '#FAFAFC',
+        backgroundColor: 'var(--surface-subtle)',
         border:
-          '1px solid rgba(0,0,0,0.05)',
+          '1px solid var(--border-faint)',
       }}
     >
       <Box
@@ -816,7 +816,7 @@ function EmptyResults({
           justifyContent: 'center',
 
           backgroundColor:
-            'rgba(0,113,227,0.08)',
+            'var(--primary-soft)',
 
           color: '#0071E3',
         }}
@@ -991,36 +991,36 @@ function getStatusStyles(
     case 'Match':
       return {
         backgroundColor:
-          '#EAF7EE',
-        color: '#248A3D',
+          'var(--success-soft)',
+        color: 'var(--success-fg)',
       };
 
     case 'Difference':
       return {
         backgroundColor:
-          '#FFF1E8',
-        color: '#A64B00',
+          'var(--warning-soft)',
+        color: 'var(--warning-fg)',
       };
 
     case 'Only ERP':
       return {
         backgroundColor:
-          '#EAF2FF',
-        color: '#0066CC',
+          'var(--info-soft)',
+        color: 'var(--info-fg)',
       };
 
     case 'Only CRM':
       return {
         backgroundColor:
-          '#F2EBFF',
-        color: '#7C3AED',
+          'var(--purple-soft)',
+        color: 'var(--purple-fg)',
       };
 
     default:
       return {
         backgroundColor:
-          '#F5F5F7',
-        color: '#6E6E73',
+          'var(--surface-muted)',
+        color: 'var(--neutral-fg)',
       };
   }
 }

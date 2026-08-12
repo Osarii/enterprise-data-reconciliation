@@ -766,7 +766,7 @@ export default function Reports() {
           value={
             summary.matched
           }
-          color="#248A3D"
+          color="var(--success-fg)"
         />
 
         <SmallMetricCard
@@ -774,7 +774,7 @@ export default function Reports() {
           value={
             summary.differences
           }
-          color="#A64B00"
+          color="var(--warning-fg)"
         />
 
         <SmallMetricCard
@@ -782,7 +782,7 @@ export default function Reports() {
           value={
             summary.onlyERP
           }
-          color="#0066CC"
+          color="var(--info-fg)"
         />
 
         <SmallMetricCard
@@ -790,13 +790,13 @@ export default function Reports() {
           value={
             summary.onlyCRM
           }
-          color="#7C3AED"
+          color="var(--purple-fg)"
         />
 
         <SmallMetricCard
           title="Exceptions"
           value={rows.length}
-          color="#D70015"
+          color="var(--danger-fg)"
         />
       </Box>
 
@@ -1012,7 +1012,7 @@ export default function Reports() {
                       horizontal={
                         false
                       }
-                      stroke="#E8E8ED"
+                      stroke="var(--surface-strong)"
                     />
 
                     <XAxis
@@ -1253,7 +1253,7 @@ export default function Reports() {
                     '999px',
 
                   backgroundColor:
-                    '#E8E8ED',
+                    'var(--surface-strong)',
 
                   '& .MuiLinearProgress-bar':
                     {
@@ -1283,7 +1283,7 @@ export default function Reports() {
                   value={
                     reviewedCount
                   }
-                  color="#248A3D"
+                  color="var(--success-fg)"
                 />
 
                 <ReviewMetric
@@ -1291,7 +1291,7 @@ export default function Reports() {
                   value={
                     pendingCount
                   }
-                  color="#A64B00"
+                  color="var(--warning-fg)"
                 />
               </Box>
 
@@ -1369,10 +1369,10 @@ export default function Reports() {
               size="small"
               sx={{
                 backgroundColor:
-                  '#F2F2F7',
+                  'var(--surface-muted)',
 
                 color:
-                  '#6E6E73',
+                  'var(--neutral-fg)',
 
                 fontWeight: 600,
               }}
@@ -1524,13 +1524,13 @@ export default function Reports() {
                               sx={{
                                 backgroundColor:
                                   reviewed
-                                    ? '#EAF7EE'
-                                    : '#F2F2F7',
+                                    ? 'var(--success-soft)'
+                                    : 'var(--surface-muted)',
 
                                 color:
                                   reviewed
                                     ? '#248A3D'
-                                    : '#6E6E73',
+                                    : 'var(--neutral-fg)',
 
                                 fontSize:
                                   '0.7rem',
@@ -2227,7 +2227,7 @@ function ExceptionChip({
     status === 'Difference'
       ? {
           backgroundColor:
-            '#FFF1E8',
+            'var(--warning-soft)',
 
           color:
             '#A64B00',
@@ -2236,14 +2236,14 @@ function ExceptionChip({
           'Only ERP'
         ? {
             backgroundColor:
-              '#EAF2FF',
+              'var(--info-soft)',
 
             color:
               '#0066CC',
           }
         : {
             backgroundColor:
-              '#F2EBFF',
+              'var(--purple-soft)',
 
             color:
               '#7C3AED',
@@ -2276,7 +2276,7 @@ function HealthChip({
     status === 'Excellent'
       ? {
           backgroundColor:
-            '#EAF7EE',
+            'var(--success-soft)',
 
           color:
             '#248A3D',
@@ -2284,7 +2284,7 @@ function HealthChip({
       : status === 'Good'
         ? {
             backgroundColor:
-              '#EAF2FF',
+              'var(--info-soft)',
 
             color:
               '#0066CC',
@@ -2293,14 +2293,14 @@ function HealthChip({
             'Needs Review'
           ? {
               backgroundColor:
-                '#FFF6E5',
+                'var(--warning-yellow-soft)',
 
               color:
                 '#9A6700',
             }
           : {
               backgroundColor:
-                '#FFECEF',
+                'var(--danger-soft)',
 
               color:
                 '#D70015',
@@ -3662,7 +3662,7 @@ function getMetricStyle(
     case 'success':
       return {
         backgroundColor:
-          '#EAF7EE',
+          'var(--success-soft)',
 
         color:
           '#248A3D',
@@ -3671,7 +3671,7 @@ function getMetricStyle(
     case 'warning':
       return {
         backgroundColor:
-          '#FFF1E8',
+          'var(--warning-soft)',
 
         color:
           '#A64B00',
@@ -3680,7 +3680,7 @@ function getMetricStyle(
     case 'info':
       return {
         backgroundColor:
-          '#EAF2FF',
+          'var(--info-soft)',
 
         color:
           '#0066CC',
@@ -3689,10 +3689,10 @@ function getMetricStyle(
     default:
       return {
         backgroundColor:
-          '#F2F2F7',
+          'var(--surface-muted)',
 
         color:
-          '#6E6E73',
+          'var(--neutral-fg)',
       };
   }
 }
