@@ -19,112 +19,119 @@ import {
   CheckCircle2,
   Database,
   GitCompareArrows,
+  Sparkles,
   TriangleAlert,
 } from 'lucide-react';
 
-import { useNavigate } from 'react-router-dom';
+import {
+  useNavigate,
+} from 'react-router-dom';
 
-import { useReconciliation } from '../../context/ReconciliationContext';
+import {
+  useReconciliation,
+} from '../../context/ReconciliationContext';
+
+import type {
+  ComparableField,
+  MatchType,
+} from '../../types/ReconciliationResult';
+
+type ExceptionType =
+  | 'Difference'
+  | 'Only ERP'
+  | 'Only CRM';
+
+interface ExceptionRow {
+  key: string;
+
+  id: string;
+
+  field: string;
+
+  erpValue: string;
+
+  crmValue: string;
+
+  status:
+    ExceptionType;
+}
 
 export default function Reconciliation() {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
   const {
     erpData,
     crmData,
+
     reconciliationResult,
+
     runReconciliation,
-  } = useReconciliation();
+  } =
+    useReconciliation();
 
   const datasetsReady =
     erpData !== null &&
     crmData !== null &&
-    erpData.errors.length === 0 &&
-    crmData.errors.length === 0 &&
-    erpData.records.length > 0 &&
-    crmData.records.length > 0;
+    erpData.errors.length ===
+      0 &&
+    crmData.errors.length ===
+      0 &&
+    erpData.records.length >
+      0 &&
+    crmData.records.length >
+      0;
 
-  return (
-    <Box>
-      {/* Page Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 3,
-          mb: 4,
-          flexWrap: 'wrap',
-        }}
-      >
-        <Box>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 700,
-              letterSpacing: '-0.03em',
-            }}
-          >
-            Reconciliation
-          </Typography>
+  const handleReconciliation =
+    () => {
+      runReconciliation();
+    };
 
-          <Typography
-            sx={{
-              color: 'text.secondary',
-              mt: 1,
-              fontSize: '0.95rem',
-            }}
-          >
-            Compare ERP and CRM datasets and identify
-            inconsistencies across enterprise systems.
-          </Typography>
-        </Box>
+  if (!datasetsReady) {
+    return (
+      <Box>
+        <PageHeader />
 
-        {datasetsReady && (
-          <Button
-            variant="contained"
-            startIcon={
-              <GitCompareArrows size={18} />
-            }
-            onClick={runReconciliation}
-            sx={{
-              alignSelf: 'flex-start',
-              px: 2.5,
-              py: 1.2,
-            }}
-          >
-            Run Reconciliation
-          </Button>
-        )}
-      </Box>
-
-      {/* Missing datasets */}
-      {!datasetsReady && (
         <Card>
           <CardContent
             sx={{
-              p: '32px !important',
+              p: '34px !important',
             }}
           >
             <Box
               sx={{
-                maxWidth: 620,
+                maxWidth: 600,
               }}
             >
               <Box
                 sx={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '14px',
+                  width: 50,
+
+                  height: 50,
+
+                  borderRadius:
+                    '15px',
+
+                  display: 'flex',
+
+                  alignItems:
+                    'center',
+
+                  justifyContent:
+                    'center',
+
                   backgroundColor:
                     'rgba(0,113,227,0.08)',
-                  color: '#0071E3',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
+
+                  color:
+                    '#0071E3',
+
                   mb: 2,
                 }}
               >
-                <Database size={24} />
+                <Database
+                  size={24}
+                />
               </Box>
 
               <Typography
@@ -138,20 +145,29 @@ export default function Reconciliation() {
 
               <Typography
                 sx={{
-                  color: 'text.secondary',
-                  fontSize: '0.88rem',
+                  color:
+                    'text.secondary',
+
+                  fontSize:
+                    '0.88rem',
+
                   mt: 1,
+
                   mb: 3,
                 }}
               >
-                Upload valid ERP and CRM datasets before
-                running a reconciliation.
+                Upload valid ERP and
+                CRM datasets before
+                running a
+                reconciliation.
               </Typography>
 
               <Button
                 variant="contained"
                 onClick={() =>
-                  navigate('/imports')
+                  navigate(
+                    '/imports'
+                  )
                 }
               >
                 Go to Imports
@@ -159,216 +175,826 @@ export default function Reconciliation() {
             </Box>
           </CardContent>
         </Card>
-      )}
+      </Box>
+    );
+  }
 
-      {/* Dataset information */}
-      {datasetsReady && (
+  const exceptionRows =
+    reconciliationResult
+      ? buildExceptionRows(
+          reconciliationResult
+        )
+      : [];
+
+  return (
+    <Box>
+      {/* HEADER */}
+      <Box
+        sx={{
+          display: 'flex',
+
+          justifyContent:
+            'space-between',
+
+          gap: 3,
+
+          flexWrap: 'wrap',
+
+          mb: 4,
+        }}
+      >
+        <PageHeader />
+
+        <Button
+          variant="contained"
+          startIcon={
+            <GitCompareArrows
+              size={18}
+            />
+          }
+          onClick={
+            handleReconciliation
+          }
+          sx={{
+            alignSelf:
+              'flex-start',
+
+            px: 2.5,
+
+            py: 1.2,
+          }}
+        >
+          {reconciliationResult
+            ? 'Run Again'
+            : 'Run Reconciliation'}
+        </Button>
+      </Box>
+
+      {/* DATASETS */}
+      <Box
+        sx={{
+          display: 'grid',
+
+          gridTemplateColumns: {
+            xs: '1fr',
+
+            md: '1fr 1fr',
+          },
+
+          gap: 2,
+
+          mb: 3,
+        }}
+      >
+        <DatasetCard
+          title="ERP Dataset"
+          fileName={
+            erpData.fileName
+          }
+          records={
+            erpData.records
+              .length
+          }
+          qualityScore={
+            erpData.qualityScore
+          }
+        />
+
+        <DatasetCard
+          title="CRM Dataset"
+          fileName={
+            crmData.fileName
+          }
+          records={
+            crmData.records
+              .length
+          }
+          qualityScore={
+            crmData.qualityScore
+          }
+        />
+      </Box>
+
+      {/* NORMALIZATION INFO */}
+      <Alert
+        severity="info"
+        icon={
+          <Sparkles
+            size={20}
+          />
+        }
+        sx={{
+          mb: 3,
+
+          borderRadius:
+            '14px',
+        }}
+      >
+        Text normalization is active.
+        Comparisons ignore leading or
+        trailing spaces, repeated
+        spaces, capitalization and
+        accents. Amounts remain strict
+        numeric comparisons.
+      </Alert>
+
+      {!reconciliationResult ? (
+        <Card>
+          <CardContent
+            sx={{
+              p: '30px !important',
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+              }}
+            >
+              Ready for
+              reconciliation
+            </Typography>
+
+            <Typography
+              sx={{
+                color:
+                  'text.secondary',
+
+                fontSize:
+                  '0.85rem',
+
+                mt: 0.8,
+              }}
+            >
+              Both datasets passed
+              validation. Run the
+              reconciliation engine to
+              compare the ERP and CRM
+              records.
+            </Typography>
+          </CardContent>
+        </Card>
+      ) : (
         <>
+          {/* RESULT SUMMARY */}
+          <Box
+            sx={{
+              display: 'flex',
+
+              justifyContent:
+                'space-between',
+
+              alignItems:
+                'flex-end',
+
+              gap: 2,
+
+              flexWrap: 'wrap',
+
+              mb: 2,
+            }}
+          >
+            <Box>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 700,
+
+                  letterSpacing:
+                    '-0.02em',
+                }}
+              >
+                Reconciliation
+                Results
+              </Typography>
+
+              <Typography
+                sx={{
+                  color:
+                    'text.secondary',
+
+                  fontSize:
+                    '0.8rem',
+
+                  mt: 0.5,
+                }}
+              >
+                Last run:{' '}
+                {formatDate(
+                  reconciliationResult
+                    .executedAt
+                )}
+              </Typography>
+            </Box>
+
+            <Chip
+              label={`${reconciliationResult.summary.matchRate.toFixed(
+                1
+              )}% match rate`}
+              sx={{
+                backgroundColor:
+                  '#EAF7EE',
+
+                color:
+                  '#248A3D',
+
+                fontWeight: 600,
+              }}
+            />
+          </Box>
+
+          {/* KPI */}
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                md: '1fr 1fr',
-              },
-              gap: 3,
+
+              gridTemplateColumns:
+                {
+                  xs: '1fr',
+
+                  sm: 'repeat(2, 1fr)',
+
+                  lg: 'repeat(6, 1fr)',
+                },
+
+              gap: 2,
+
               mb: 3,
             }}
           >
-            <DatasetCard
-              title="ERP Dataset"
-              fileName={erpData.fileName}
-              records={erpData.records.length}
-            />
-
-            <DatasetCard
-              title="CRM Dataset"
-              fileName={crmData.fileName}
-              records={crmData.records.length}
-            />
-          </Box>
-
-          {!reconciliationResult && (
-            <Alert
-              severity="info"
-              sx={{
-                borderRadius: '14px',
-              }}
-            >
-              Both datasets are valid. Run the
-              reconciliation to compare their records.
-            </Alert>
-          )}
-        </>
-      )}
-
-      {/* Reconciliation results */}
-      {reconciliationResult && (
-        <Box sx={{ mt: 4 }}>
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="h5"
-              sx={{
-                fontWeight: 650,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Reconciliation Results
-            </Typography>
-
-            <Typography
-              sx={{
-                color: 'text.secondary',
-                fontSize: '0.82rem',
-                mt: 0.5,
-              }}
-            >
-              Last run:{' '}
-              {formatDate(
-                reconciliationResult.executedAt
-              )}
-            </Typography>
-          </Box>
-
-          {/* KPI Cards */}
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                lg: 'repeat(5, 1fr)',
-              },
-              gap: 2,
-              mb: 4,
-            }}
-          >
             <ResultCard
-              title="Matched"
+              title="Exact Matches"
               value={
-                reconciliationResult.summary
-                  .matched
+                reconciliationResult
+                  .summary
+                  .exactMatched
               }
-              subtitle={`${reconciliationResult.summary.matchRate.toFixed(
-                1
-              )}% match rate`}
-              type="success"
+              subtitle="Raw values equal"
+              type="exact"
+            />
+
+            <ResultCard
+              title="Normalized"
+              value={
+                reconciliationResult
+                  .summary
+                  .normalizedMatched
+              }
+              subtitle="Formatting adjusted"
+              type="normalized"
             />
 
             <ResultCard
               title="Differences"
               value={
-                reconciliationResult.summary
+                reconciliationResult
+                  .summary
                   .differences
               }
-              subtitle="Same ID, different data"
-              type="warning"
+              subtitle="Real mismatches"
+              type="difference"
             />
 
             <ResultCard
               title="Only ERP"
               value={
-                reconciliationResult.summary
-                  .onlyERP
+                reconciliationResult
+                  .summary.onlyERP
               }
-              subtitle="Missing from CRM"
-              type="info"
+              subtitle="Missing CRM"
+              type="erp"
             />
 
             <ResultCard
               title="Only CRM"
               value={
-                reconciliationResult.summary
-                  .onlyCRM
+                reconciliationResult
+                  .summary.onlyCRM
               }
-              subtitle="Missing from ERP"
-              type="purple"
+              subtitle="Missing ERP"
+              type="crm"
             />
 
             <ResultCard
               title="Unique Records"
               value={
-                reconciliationResult.summary
+                reconciliationResult
+                  .summary
                   .totalUnique
               }
-              subtitle="Across both systems"
-              type="neutral"
+              subtitle="Across systems"
+              type="total"
             />
           </Box>
 
-          {/* Exceptions Table */}
+          {/* MATCH ANALYSIS */}
+          <Card
+            sx={{
+              mb: 3,
+            }}
+          >
+            <CardContent
+              sx={{
+                p: '28px !important',
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+
+                  justifyContent:
+                    'space-between',
+
+                  alignItems:
+                    'center',
+
+                  gap: 2,
+
+                  flexWrap:
+                    'wrap',
+
+                  mb: 2,
+                }}
+              >
+                <Box>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight:
+                        600,
+                    }}
+                  >
+                    Match Analysis
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      color:
+                        'text.secondary',
+
+                      fontSize:
+                        '0.78rem',
+
+                      mt: 0.4,
+                    }}
+                  >
+                    Distinguishes exact
+                    matches from records
+                    matched after data
+                    normalization.
+                  </Typography>
+                </Box>
+
+                <Chip
+                  size="small"
+                  label={`${reconciliationResult.matched.length} matched`}
+                  sx={{
+                    backgroundColor:
+                      '#F2F2F7',
+
+                    color:
+                      '#6E6E73',
+
+                    fontWeight:
+                      600,
+                  }}
+                />
+              </Box>
+
+              <Divider
+                sx={{
+                  mb: 2,
+                }}
+              />
+
+              {reconciliationResult
+                .matched.length ===
+              0 ? (
+                <Alert
+                  severity="warning"
+                  sx={{
+                    borderRadius:
+                      '12px',
+                  }}
+                >
+                  No matched records
+                  were found.
+                </Alert>
+              ) : (
+                <Box
+                  sx={{
+                    overflowX:
+                      'auto',
+                  }}
+                >
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>
+                          ID
+                        </TableCell>
+
+                        <TableCell>
+                          Customer
+                        </TableCell>
+
+                        <TableCell>
+                          Match Type
+                        </TableCell>
+
+                        <TableCell>
+                          Normalized Fields
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+
+                    <TableBody>
+                      {reconciliationResult
+                        .matched.map(
+                          (
+                            record
+                          ) => (
+                            <TableRow
+                              key={
+                                record.id
+                              }
+                            >
+                              <TableCell>
+                                <Typography
+                                  sx={{
+                                    fontSize:
+                                      '0.8rem',
+
+                                    fontWeight:
+                                      600,
+                                  }}
+                                >
+                                  {
+                                    record.id
+                                  }
+                                </Typography>
+                              </TableCell>
+
+                              <TableCell>
+                                <Typography
+                                  sx={{
+                                    fontSize:
+                                      '0.8rem',
+                                  }}
+                                >
+                                  {
+                                    record
+                                      .erpRecord
+                                      .cliente
+                                  }
+                                </Typography>
+                              </TableCell>
+
+                              <TableCell>
+                                <MatchChip
+                                  matchType={
+                                    record.matchType
+                                  }
+                                />
+                              </TableCell>
+
+                              <TableCell>
+                                {record
+                                  .normalizedFields
+                                  .length ===
+                                0 ? (
+                                  <Typography
+                                    sx={{
+                                      color:
+                                        'text.secondary',
+
+                                      fontSize:
+                                        '0.78rem',
+                                    }}
+                                  >
+                                    —
+                                  </Typography>
+                                ) : (
+                                  <Box
+                                    sx={{
+                                      display:
+                                        'flex',
+
+                                      gap: 0.7,
+
+                                      flexWrap:
+                                        'wrap',
+                                    }}
+                                  >
+                                    {record.normalizedFields.map(
+                                      (
+                                        field
+                                      ) => (
+                                        <Chip
+                                          key={
+                                            field
+                                          }
+                                          size="small"
+                                          label={formatFieldName(
+                                            field
+                                          )}
+                                          sx={{
+                                            backgroundColor:
+                                              '#EEF6FF',
+
+                                            color:
+                                              '#0066CC',
+
+                                            fontSize:
+                                              '0.67rem',
+
+                                            fontWeight:
+                                              600,
+                                          }}
+                                        />
+                                      )
+                                    )}
+                                  </Box>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        )}
+                    </TableBody>
+                  </Table>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* EXCEPTIONS */}
           <Card>
             <CardContent
               sx={{
                 p: '28px !important',
               }}
             >
-              <Box sx={{ mb: 2 }}>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 600,
-                  }}
-                >
-                  Exceptions
-                </Typography>
+              <Box
+                sx={{
+                  display: 'flex',
 
-                <Typography
-                  sx={{
-                    color: 'text.secondary',
-                    fontSize: '0.82rem',
-                    mt: 0.5,
-                  }}
+                  justifyContent:
+                    'space-between',
+
+                  gap: 2,
+
+                  flexWrap:
+                    'wrap',
+
+                  mb: 2,
+                }}
+              >
+                <Box>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight:
+                        600,
+                    }}
+                  >
+                    Exceptions
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      color:
+                        'text.secondary',
+
+                      fontSize:
+                        '0.78rem',
+
+                      mt: 0.4,
+                    }}
+                  >
+                    Only real
+                    differences and
+                    missing records
+                    appear here.
+                  </Typography>
+                </Box>
+
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={
+                    exceptionRows.length ===
+                    0
+                  }
+                  onClick={() =>
+                    navigate(
+                      '/exceptions'
+                    )
+                  }
                 >
-                  Records requiring review after
-                  reconciliation.
-                </Typography>
+                  Review Exceptions
+                </Button>
               </Box>
 
-              <Divider sx={{ mb: 2 }} />
+              <Divider
+                sx={{
+                  mb: 2,
+                }}
+              />
 
-              <ExceptionsTable />
+              {exceptionRows.length ===
+              0 ? (
+                <Alert
+                  severity="success"
+                  sx={{
+                    borderRadius:
+                      '12px',
+                  }}
+                >
+                  No real discrepancies
+                  were detected.
+                </Alert>
+              ) : (
+                <Box
+                  sx={{
+                    overflowX:
+                      'auto',
+                  }}
+                >
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>
+                          ID
+                        </TableCell>
+
+                        <TableCell>
+                          Field
+                        </TableCell>
+
+                        <TableCell>
+                          ERP Value
+                        </TableCell>
+
+                        <TableCell>
+                          CRM Value
+                        </TableCell>
+
+                        <TableCell>
+                          Type
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+
+                    <TableBody>
+                      {exceptionRows.map(
+                        (row) => (
+                          <TableRow
+                            key={
+                              row.key
+                            }
+                          >
+                            <TableCell>
+                              <Typography
+                                sx={{
+                                  fontSize:
+                                    '0.8rem',
+
+                                  fontWeight:
+                                    600,
+                                }}
+                              >
+                                {
+                                  row.id
+                                }
+                              </Typography>
+                            </TableCell>
+
+                            <TableCell>
+                              {
+                                row.field
+                              }
+                            </TableCell>
+
+                            <TableCell>
+                              {
+                                row.erpValue
+                              }
+                            </TableCell>
+
+                            <TableCell>
+                              {
+                                row.crmValue
+                              }
+                            </TableCell>
+
+                            <TableCell>
+                              <ExceptionChip
+                                status={
+                                  row.status
+                                }
+                              />
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )}
+                    </TableBody>
+                  </Table>
+                </Box>
+              )}
             </CardContent>
           </Card>
-        </Box>
+        </>
       )}
+    </Box>
+  );
+}
+
+function PageHeader() {
+  return (
+    <Box>
+      <Typography
+        variant="h4"
+        sx={{
+          fontWeight: 700,
+
+          letterSpacing:
+            '-0.03em',
+        }}
+      >
+        Reconciliation
+      </Typography>
+
+      <Typography
+        sx={{
+          color:
+            'text.secondary',
+
+          mt: 1,
+
+          fontSize:
+            '0.95rem',
+        }}
+      >
+        Compare validated ERP and
+        CRM records using exact and
+        normalized matching.
+      </Typography>
     </Box>
   );
 }
 
 interface DatasetCardProps {
   title: string;
+
   fileName: string;
+
   records: number;
+
+  qualityScore: number;
 }
 
 function DatasetCard({
   title,
   fileName,
   records,
+  qualityScore,
 }: DatasetCardProps) {
   return (
     <Card>
       <CardContent
         sx={{
-          p: '24px !important',
+          p: '20px !important',
         }}
       >
         <Box
           sx={{
             display: 'flex',
-            justifyContent: 'space-between',
+
+            justifyContent:
+              'space-between',
+
+            alignItems:
+              'center',
+
             gap: 2,
           }}
         >
           <Box>
             <Typography
               sx={{
-                color: 'text.secondary',
-                fontSize: '0.72rem',
+                color:
+                  'text.secondary',
+
+                fontSize:
+                  '0.68rem',
+
                 fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
+
+                textTransform:
+                  'uppercase',
+
+                letterSpacing:
+                  '0.05em',
               }}
             >
               {title}
@@ -376,9 +1002,12 @@ function DatasetCard({
 
             <Typography
               sx={{
+                fontSize:
+                  '0.88rem',
+
                 fontWeight: 600,
-                fontSize: '0.95rem',
-                mt: 0.8,
+
+                mt: 0.5,
               }}
             >
               {fileName}
@@ -386,47 +1015,67 @@ function DatasetCard({
 
             <Typography
               sx={{
-                color: 'text.secondary',
-                fontSize: '0.76rem',
-                mt: 0.4,
+                color:
+                  'text.secondary',
+
+                fontSize:
+                  '0.7rem',
+
+                mt: 0.3,
               }}
             >
-              {records.toLocaleString()} records
+              {records.toLocaleString()}{' '}
+              records · Quality{' '}
+              {qualityScore}%
             </Typography>
           </Box>
 
-          <Box
+          <Chip
+            size="small"
+            icon={
+              <CheckCircle2
+                size={14}
+              />
+            }
+            label="Ready"
             sx={{
-              width: 42,
-              height: 42,
-              borderRadius: '13px',
               backgroundColor:
-                'rgba(0,113,227,0.08)',
-              color: '#0071E3',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+                '#EAF7EE',
+
+              color:
+                '#248A3D',
+
+              fontWeight: 600,
+
+              '& .MuiChip-icon':
+                {
+                  color:
+                    'inherit',
+                },
             }}
-          >
-            <Database size={20} />
-          </Box>
+          />
         </Box>
       </CardContent>
     </Card>
   );
 }
 
+type ResultType =
+  | 'exact'
+  | 'normalized'
+  | 'difference'
+  | 'erp'
+  | 'crm'
+  | 'total';
+
 interface ResultCardProps {
   title: string;
+
   value: number;
+
   subtitle: string;
 
-  type:
-    | 'success'
-    | 'warning'
-    | 'info'
-    | 'purple'
-    | 'neutral';
+  type: ResultType;
 }
 
 function ResultCard({
@@ -435,27 +1084,38 @@ function ResultCard({
   subtitle,
   type,
 }: ResultCardProps) {
-  const styles = getResultCardStyles(type);
+  const style =
+    getResultCardStyle(
+      type
+    );
 
   return (
     <Card>
       <CardContent
         sx={{
-          p: '22px !important',
+          p: '19px !important',
         }}
       >
         <Box
           sx={{
             display: 'flex',
-            justifyContent: 'space-between',
-            gap: 2,
-            mb: 2,
+
+            justifyContent:
+              'space-between',
+
+            gap: 1,
+
+            mb: 1.5,
           }}
         >
           <Typography
             sx={{
-              color: 'text.secondary',
-              fontSize: '0.76rem',
+              color:
+                'text.secondary',
+
+              fontSize:
+                '0.69rem',
+
               fontWeight: 600,
             }}
           >
@@ -464,42 +1124,65 @@ function ResultCard({
 
           <Box
             sx={{
-              width: 28,
-              height: 28,
-              borderRadius: '9px',
+              width: 27,
+
+              height: 27,
+
+              borderRadius:
+                '8px',
+
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+
+              alignItems:
+                'center',
+
+              justifyContent:
+                'center',
+
               backgroundColor:
-                styles.backgroundColor,
-              color: styles.color,
+                style.backgroundColor,
+
+              color:
+                style.color,
             }}
           >
-            {type === 'success' && (
-              <CheckCircle2 size={15} />
-            )}
-
-            {type === 'warning' && (
-              <TriangleAlert size={15} />
-            )}
-
-            {(type === 'info' ||
-              type === 'purple') && (
-              <ArrowLeftRight size={15} />
-            )}
-
-            {type === 'neutral' && (
-              <Database size={15} />
+            {type ===
+            'exact' ? (
+              <CheckCircle2
+                size={14}
+              />
+            ) : type ===
+              'normalized' ? (
+              <Sparkles
+                size={14}
+              />
+            ) : type ===
+              'difference' ? (
+              <TriangleAlert
+                size={14}
+              />
+            ) : type ===
+              'total' ? (
+              <Database
+                size={14}
+              />
+            ) : (
+              <ArrowLeftRight
+                size={14}
+              />
             )}
           </Box>
         </Box>
 
         <Typography
           sx={{
-            fontSize: '1.9rem',
+            fontSize:
+              '1.65rem',
+
             fontWeight: 700,
-            letterSpacing: '-0.04em',
-            lineHeight: 1,
+
+            letterSpacing:
+              '-0.04em',
           }}
         >
           {value.toLocaleString()}
@@ -507,9 +1190,13 @@ function ResultCard({
 
         <Typography
           sx={{
-            color: 'text.secondary',
-            fontSize: '0.7rem',
-            mt: 0.8,
+            color:
+              'text.secondary',
+
+            fontSize:
+              '0.66rem',
+
+            mt: 0.5,
           }}
         >
           {subtitle}
@@ -519,237 +1206,260 @@ function ResultCard({
   );
 }
 
-function ExceptionsTable() {
-  const { reconciliationResult } =
-    useReconciliation();
-
-  if (!reconciliationResult) {
-    return null;
-  }
-
-  const hasExceptions =
-    reconciliationResult.differences.length >
-      0 ||
-    reconciliationResult.onlyERP.length > 0 ||
-    reconciliationResult.onlyCRM.length > 0;
-
-  if (!hasExceptions) {
-    return (
-      <Alert
-        severity="success"
-        sx={{
-          borderRadius: '12px',
-        }}
-      >
-        No exceptions were detected. All records
-        match.
-      </Alert>
-    );
-  }
-
-  return (
-    <Box
-      sx={{
-        overflowX: 'auto',
-      }}
-    >
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>ID</TableCell>
-            <TableCell>Field</TableCell>
-            <TableCell>ERP Value</TableCell>
-            <TableCell>CRM Value</TableCell>
-            <TableCell>Status</TableCell>
-          </TableRow>
-        </TableHead>
-
-        <TableBody>
-          {reconciliationResult.differences.flatMap(
-            (record) =>
-              record.differences.map(
-                (difference) => (
-                  <TableRow
-                    key={`${record.id}-${difference.field}`}
-                  >
-                    <TableCell>
-                      {record.id}
-                    </TableCell>
-
-                    <TableCell>
-                      {formatFieldName(
-                        difference.field
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      {formatValue(
-                        difference.erpValue
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      {formatValue(
-                        difference.crmValue
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      <StatusChip
-                        status="Difference"
-                      />
-                    </TableCell>
-                  </TableRow>
-                )
-              )
-          )}
-
-          {reconciliationResult.onlyERP.map(
-            (record) => (
-              <TableRow
-                key={`erp-${record.id}`}
-              >
-                <TableCell>
-                  {record.id}
-                </TableCell>
-
-                <TableCell>
-                  Entire Record
-                </TableCell>
-
-                <TableCell>
-                  Present
-                </TableCell>
-
-                <TableCell>
-                  —
-                </TableCell>
-
-                <TableCell>
-                  <StatusChip
-                    status="Only ERP"
-                  />
-                </TableCell>
-              </TableRow>
-            )
-          )}
-
-          {reconciliationResult.onlyCRM.map(
-            (record) => (
-              <TableRow
-                key={`crm-${record.id}`}
-              >
-                <TableCell>
-                  {record.id}
-                </TableCell>
-
-                <TableCell>
-                  Entire Record
-                </TableCell>
-
-                <TableCell>
-                  —
-                </TableCell>
-
-                <TableCell>
-                  Present
-                </TableCell>
-
-                <TableCell>
-                  <StatusChip
-                    status="Only CRM"
-                  />
-                </TableCell>
-              </TableRow>
-            )
-          )}
-        </TableBody>
-      </Table>
-    </Box>
-  );
-}
-
-type StatusType =
-  | 'Difference'
-  | 'Only ERP'
-  | 'Only CRM';
-
-interface StatusChipProps {
-  status: StatusType;
-}
-
-function StatusChip({
-  status,
-}: StatusChipProps) {
-  const styles =
-    status === 'Difference'
-      ? {
-          backgroundColor: '#FFF1E8',
-          color: '#A64B00',
-        }
-      : status === 'Only ERP'
-      ? {
-          backgroundColor: '#EAF2FF',
-          color: '#0066CC',
-        }
-      : {
-          backgroundColor: '#F2EBFF',
-          color: '#7C3AED',
-        };
+function MatchChip({
+  matchType,
+}: {
+  matchType: MatchType;
+}) {
+  const normalized =
+    matchType ===
+    'Normalized Match';
 
   return (
     <Chip
-      label={status}
       size="small"
+      icon={
+        normalized ? (
+          <Sparkles
+            size={13}
+          />
+        ) : (
+          <CheckCircle2
+            size={13}
+          />
+        )
+      }
+      label={matchType}
       sx={{
         backgroundColor:
-          styles.backgroundColor,
-        color: styles.color,
+          normalized
+            ? '#EEF6FF'
+            : '#EAF7EE',
+
+        color:
+          normalized
+            ? '#0066CC'
+            : '#248A3D',
+
+        fontSize:
+          '0.68rem',
+
         fontWeight: 600,
-        fontSize: '0.7rem',
+
+        '& .MuiChip-icon':
+          {
+            color: 'inherit',
+          },
       }}
     />
   );
 }
 
-function getResultCardStyles(
-  type: ResultCardProps['type']
+function ExceptionChip({
+  status,
+}: {
+  status:
+    ExceptionType;
+}) {
+  const style =
+    status ===
+    'Difference'
+      ? {
+          backgroundColor:
+            '#FFF1E8',
+
+          color:
+            '#A64B00',
+        }
+      : status ===
+          'Only ERP'
+        ? {
+            backgroundColor:
+              '#EAF2FF',
+
+            color:
+              '#0066CC',
+          }
+        : {
+            backgroundColor:
+              '#F2EBFF',
+
+            color:
+              '#7C3AED',
+          };
+
+  return (
+    <Chip
+      size="small"
+      label={status}
+      sx={{
+        ...style,
+
+        fontSize:
+          '0.68rem',
+
+        fontWeight: 600,
+      }}
+    />
+  );
+}
+
+function getResultCardStyle(
+  type: ResultType
 ) {
   switch (type) {
-    case 'success':
+    case 'exact':
       return {
-        backgroundColor: '#EAF7EE',
-        color: '#248A3D',
+        backgroundColor:
+          '#EAF7EE',
+
+        color:
+          '#248A3D',
       };
 
-    case 'warning':
+    case 'normalized':
       return {
-        backgroundColor: '#FFF1E8',
-        color: '#A64B00',
+        backgroundColor:
+          '#EEF6FF',
+
+        color:
+          '#0066CC',
       };
 
-    case 'info':
+    case 'difference':
       return {
-        backgroundColor: '#EAF2FF',
-        color: '#0066CC',
+        backgroundColor:
+          '#FFF1E8',
+
+        color:
+          '#A64B00',
       };
 
-    case 'purple':
+    case 'erp':
       return {
-        backgroundColor: '#F2EBFF',
-        color: '#7C3AED',
+        backgroundColor:
+          '#EAF2FF',
+
+        color:
+          '#0066CC',
+      };
+
+    case 'crm':
+      return {
+        backgroundColor:
+          '#F2EBFF',
+
+        color:
+          '#7C3AED',
       };
 
     default:
       return {
-        backgroundColor: '#F2F2F7',
-        color: '#6E6E73',
+        backgroundColor:
+          '#F2F2F7',
+
+        color:
+          '#6E6E73',
       };
   }
 }
 
+function buildExceptionRows(
+  result:
+    NonNullable<
+      ReturnType<
+        typeof useReconciliation
+      >['reconciliationResult']
+    >
+): ExceptionRow[] {
+  const rows:
+    ExceptionRow[] = [];
+
+  result.differences.forEach(
+    (record) => {
+      record.differences.forEach(
+        (difference) => {
+          rows.push({
+            key: `${record.id}:difference:${difference.field}`,
+
+            id:
+              record.id,
+
+            field:
+              formatFieldName(
+                difference.field
+              ),
+
+            erpValue:
+              formatValue(
+                difference.erpValue
+              ),
+
+            crmValue:
+              formatValue(
+                difference.crmValue
+              ),
+
+            status:
+              'Difference',
+          });
+        }
+      );
+    }
+  );
+
+  result.onlyERP.forEach(
+    (record) => {
+      rows.push({
+        key: `${record.id}:only-erp`,
+
+        id:
+          record.id,
+
+        field:
+          'Entire Record',
+
+        erpValue:
+          'Present',
+
+        crmValue:
+          '—',
+
+        status:
+          'Only ERP',
+      });
+    }
+  );
+
+  result.onlyCRM.forEach(
+    (record) => {
+      rows.push({
+        key: `${record.id}:only-crm`,
+
+        id:
+          record.id,
+
+        field:
+          'Entire Record',
+
+        erpValue:
+          '—',
+
+        crmValue:
+          'Present',
+
+        status:
+          'Only CRM',
+      });
+    }
+  );
+
+  return rows;
+}
+
 function formatFieldName(
-  field: string
+  field:
+    ComparableField
 ): string {
   switch (field) {
     case 'cliente':
@@ -760,17 +1470,19 @@ function formatFieldName(
 
     case 'estado':
       return 'Status';
-
-    default:
-      return field;
   }
 }
 
 function formatValue(
   value: string | number
 ): string {
-  if (typeof value === 'number') {
-    return value.toLocaleString('es-CR');
+  if (
+    typeof value ===
+    'number'
+  ) {
+    return value.toLocaleString(
+      'es-CR'
+    );
   }
 
   return value;
@@ -779,13 +1491,16 @@ function formatValue(
 function formatDate(
   value: string
 ): string {
-  const date = new Date(value);
-
   return new Intl.DateTimeFormat(
     'es-CR',
     {
-      dateStyle: 'medium',
-      timeStyle: 'short',
+      dateStyle:
+        'medium',
+
+      timeStyle:
+        'short',
     }
-  ).format(date);
+  ).format(
+    new Date(value)
+  );
 }
