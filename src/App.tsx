@@ -11,12 +11,16 @@ import Imports from './pages/Imports/Imports';
 
 import Reconciliation from './pages/Reconciliation/Reconciliation';
 
+import Exceptions from './pages/Exceptions/Exceptions';
+
 import PlaceholderPage from './pages/PlaceholderPage';
 
 function App() {
   return (
     <Routes>
-      <Route element={<MainLayout />}>
+      <Route
+        element={<MainLayout />}
+      >
         <Route
           index
           element={<Dashboard />}
@@ -29,13 +33,15 @@ function App() {
 
         <Route
           path="/reconciliation"
-          element={<Reconciliation />}
+          element={
+            <Reconciliation />
+          }
         />
 
         <Route
           path="/exceptions"
           element={
-            <PlaceholderPage title="Exceptions" />
+            <Exceptions />
           }
         />
 

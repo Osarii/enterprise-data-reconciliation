@@ -8,7 +8,6 @@ import {
 import { reconcileData } from '../utils/reconcileData';
 
 import type { ReconciliationRecord } from '../types/ReconciliationRecord';
-
 import type { ReconciliationResult } from '../types/ReconciliationResult';
 
 export interface ImportedDataset {
@@ -25,6 +24,8 @@ interface ReconciliationContextType {
 
   reconciliationResult: ReconciliationResult | null;
 
+  reviewedExceptionKeys: string[];
+
   setErpData: (
     data: ImportedDataset | null
   ) => void;
@@ -35,6 +36,16 @@ interface ReconciliationContextType {
 
   runReconciliation: () =>
     ReconciliationResult | null;
+
+  setExceptionReviewed: (
+    key: string,
+    reviewed: boolean
+  ) => void;
+
+  setExceptionsReviewed: (
+    keys: string[],
+    reviewed: boolean
+  ) => void;
 
   clearData: () => void;
 }
@@ -64,24 +75,28 @@ export function ReconciliationProvider({
     null
   );
 
+  const [
+    reviewedExceptionKeys,
+    setReviewedExceptionKeys,
+  ] = useState<string[]>([]);
+
+  const invalidateReconciliation = () => {
+    setReconciliationResult(null);
+    setReviewedExceptionKeys([]);
+  };
+
   const setErpData = (
     data: ImportedDataset | null
   ) => {
     setErpDataState(data);
-
-    // Imported data changed, previous result
-    // is no longer valid.
-    setReconciliationResult(null);
+    invalidateReconciliation();
   };
 
   const setCrmData = (
     data: ImportedDataset | null
   ) => {
     setCrmDataState(data);
-
-    // Imported data changed, previous result
-    // is no longer valid.
-    setReconciliationResult(null);
+    invalidateReconciliation();
   };
 
   const runReconciliation = () => {
@@ -110,13 +125,72 @@ export function ReconciliationProvider({
 
     setReconciliationResult(result);
 
+    // A new reconciliation creates
+    // a new review cycle.
+    setReviewedExceptionKeys([]);
+
     return result;
+  };
+
+  const setExceptionReviewed = (
+    key: string,
+    reviewed: boolean
+  ) => {
+    setReviewedExceptionKeys(
+      (currentKeys) => {
+        if (reviewed) {
+          if (
+            currentKeys.includes(key)
+          ) {
+            return currentKeys;
+          }
+
+          return [
+            ...currentKeys,
+            key,
+          ];
+        }
+
+        return currentKeys.filter(
+          (currentKey) =>
+            currentKey !== key
+        );
+      }
+    );
+  };
+
+  const setExceptionsReviewed = (
+    keys: string[],
+    reviewed: boolean
+  ) => {
+    setReviewedExceptionKeys(
+      (currentKeys) => {
+        if (reviewed) {
+          const combined =
+            new Set([
+              ...currentKeys,
+              ...keys,
+            ]);
+
+          return Array.from(combined);
+        }
+
+        const keysToRemove =
+          new Set(keys);
+
+        return currentKeys.filter(
+          (key) =>
+            !keysToRemove.has(key)
+        );
+      }
+    );
   };
 
   const clearData = () => {
     setErpDataState(null);
     setCrmDataState(null);
     setReconciliationResult(null);
+    setReviewedExceptionKeys([]);
   };
 
   return (
@@ -127,10 +201,15 @@ export function ReconciliationProvider({
 
         reconciliationResult,
 
+        reviewedExceptionKeys,
+
         setErpData,
         setCrmData,
 
         runReconciliation,
+
+        setExceptionReviewed,
+        setExceptionsReviewed,
 
         clearData,
       }}
@@ -142,7 +221,9 @@ export function ReconciliationProvider({
 
 export function useReconciliation() {
   const context =
-    useContext(ReconciliationContext);
+    useContext(
+      ReconciliationContext
+    );
 
   if (!context) {
     throw new Error(
