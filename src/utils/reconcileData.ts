@@ -1,10 +1,23 @@
 import {
+  DEFAULT_RECONCILIATION_RULES,
+} from '../config/reconciliationRulesConfig';
+
+import {
   areValuesEquivalent,
 } from './normalizeData';
+
+import {
+  isAmountWithinTolerance,
+  sanitizeReconciliationRules,
+} from './reconciliationRules';
 
 import type {
   ReconciliationRecord,
 } from '../types/ReconciliationRecord';
+
+import type {
+  ReconciliationRules,
+} from '../types/ReconciliationRules';
 
 import type {
   ComparableField,
@@ -26,8 +39,14 @@ export function reconcileData(
     ReconciliationRecord[],
 
   crmRecords:
-    ReconciliationRecord[]
+    ReconciliationRecord[],
+
+  rules: ReconciliationRules =
+    DEFAULT_RECONCILIATION_RULES
 ): ReconciliationResult {
+  const activeRules =
+    sanitizeReconciliationRules(rules);
+
   const matched:
     MatchedRecord[] = [];
 
@@ -48,6 +67,11 @@ export function reconcileData(
    * Duplicate IDs are already
    * blocked during import
    * validation.
+   *
+   * ID matching intentionally stays
+   * exact in V0.1.7 because the ID is
+   * the reconciliation key rather than
+   * a descriptive field.
    */
   const crmMap =
     new Map<
@@ -67,9 +91,6 @@ export function reconcileData(
   const processedIds =
     new Set<string>();
 
-  /*
-   * ERP → CRM
-   */
   erpRecords.forEach(
     (erpRecord) => {
       const crmRecord =
@@ -77,10 +98,6 @@ export function reconcileData(
           erpRecord.id
         );
 
-      /*
-       * Record exists only
-       * in ERP.
-       */
       if (!crmRecord) {
         onlyERP.push(
           erpRecord
@@ -101,6 +118,10 @@ export function reconcileData(
         ComparableField[] =
           [];
 
+      const toleranceFields:
+        ComparableField[] =
+          [];
+
       COMPARABLE_FIELDS.forEach(
         (field) => {
           const erpValue =
@@ -109,9 +130,6 @@ export function reconcileData(
           const crmValue =
             crmRecord[field];
 
-          /*
-           * Perfect raw match.
-           */
           if (
             erpValue ===
             crmValue
@@ -119,20 +137,35 @@ export function reconcileData(
             return;
           }
 
-          /*
-           * Raw values differ,
-           * so we test normalized
-           * equivalence.
-           */
-          const normalizedMatch =
+          if (
+            field === 'monto' &&
+            isAmountWithinTolerance(
+              erpValue,
+              crmValue,
+              activeRules
+            )
+          ) {
+            toleranceFields.push(
+              field
+            );
+
+            return;
+          }
+
+          const normalizationEnabled =
+            field === 'cliente'
+              ? activeRules.normalizeCustomerNames
+              : field === 'estado'
+                ? activeRules.normalizeStatuses
+                : false;
+
+          if (
+            normalizationEnabled &&
             areValuesEquivalent(
               field,
               erpValue,
               crmValue
-            );
-
-          if (
-            normalizedMatch
+            )
           ) {
             normalizedFields.push(
               field
@@ -141,26 +174,14 @@ export function reconcileData(
             return;
           }
 
-          /*
-           * Still different after
-           * normalization.
-           *
-           * This is a real
-           * discrepancy.
-           */
           fieldDifferences.push({
             field,
-
             erpValue,
-
             crmValue,
           });
         }
       );
 
-      /*
-       * No real differences.
-       */
       if (
         fieldDifferences.length ===
         0
@@ -174,21 +195,20 @@ export function reconcileData(
           crmRecord,
 
           matchType:
-            normalizedFields.length >
-            0
-              ? 'Normalized Match'
-              : 'Exact Match',
+            toleranceFields.length > 0
+              ? 'Tolerance Match'
+              : normalizedFields.length > 0
+                ? 'Normalized Match'
+                : 'Exact Match',
 
           normalizedFields,
+
+          toleranceFields,
         });
 
         return;
       }
 
-      /*
-       * At least one real
-       * discrepancy exists.
-       */
       differences.push({
         id:
           erpRecord.id,
@@ -203,10 +223,6 @@ export function reconcileData(
     }
   );
 
-  /*
-   * CRM records not processed
-   * exist only in CRM.
-   */
   crmRecords.forEach(
     (crmRecord) => {
       if (
@@ -257,6 +273,13 @@ export function reconcileData(
         'Normalized Match'
     ).length;
 
+  const toleranceMatched =
+    matched.filter(
+      (record) =>
+        record.matchType ===
+        'Tolerance Match'
+    ).length;
+
   const totalUnique =
     uniqueIds.size;
 
@@ -291,6 +314,8 @@ export function reconcileData(
       exactMatched,
 
       normalizedMatched,
+
+      toleranceMatched,
 
       differences:
         differences.length,

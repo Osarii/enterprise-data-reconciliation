@@ -1,0 +1,6 @@
+id,cliente,monto,estado
+RULE-100,Acme Corp,1000,Activo
+RULE-101,Café Norte,2000,Pendiente
+RULE-102,Delta Logistics,5000,Activo
+RULE-103,Orion Tech,10000,Inactivo
+RULE-104,Nova Labs,15000,Activo

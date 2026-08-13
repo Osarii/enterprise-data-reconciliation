@@ -7,6 +7,10 @@ import {
   DEFAULT_FIELD_MAPPING,
 } from '../config/fieldMappingConfig';
 
+import {
+  DEFAULT_RECONCILIATION_RULES,
+} from '../config/reconciliationRulesConfig';
+
 import type {
   ImportedDataset,
 } from '../types/ImportedDataset';
@@ -21,9 +25,14 @@ import type {
 } from '../types/ReconciliationHistory';
 
 import type {
+  MatchedRecord,
   ReconciliationResult,
   ReconciliationSummary,
 } from '../types/ReconciliationResult';
+
+import type {
+  ReconciliationRules,
+} from '../types/ReconciliationRules';
 
 export interface PersistedWorkspace {
   version: typeof WORKSPACE_STORAGE_VERSION;
@@ -34,6 +43,7 @@ export interface PersistedWorkspace {
   reviewedExceptionKeys: string[];
   reconciliationHistory: ReconciliationHistoryEntry[];
   fieldMappings: DatasetFieldMappings;
+  reconciliationRules: ReconciliationRules;
 }
 
 export interface WorkspacePersistenceResult {
@@ -49,6 +59,7 @@ interface WorkspaceStateToPersist {
   reviewedExceptionKeys: string[];
   reconciliationHistory: ReconciliationHistoryEntry[];
   fieldMappings: DatasetFieldMappings;
+  reconciliationRules: ReconciliationRules;
 }
 
 export function loadWorkspace(): PersistedWorkspace | null {
@@ -98,7 +109,8 @@ export function saveWorkspace(
       state.reconciliationResult ||
       state.reviewedExceptionKeys.length > 0 ||
       state.reconciliationHistory.length > 0 ||
-      !areDatasetFieldMappingsDefault(state.fieldMappings)
+      !areDatasetFieldMappingsDefault(state.fieldMappings) ||
+      !areReconciliationRulesDefault(state.reconciliationRules)
   );
 
   if (!hasPersistableData) {
@@ -131,6 +143,7 @@ export function saveWorkspace(
     reviewedExceptionKeys: state.reviewedExceptionKeys,
     reconciliationHistory: state.reconciliationHistory,
     fieldMappings: state.fieldMappings,
+    reconciliationRules: state.reconciliationRules,
   };
 
   try {
@@ -176,6 +189,7 @@ function normalizeWorkspace(
   if (
     value.version !== 1 &&
     value.version !== 2 &&
+    value.version !== 3 &&
     value.version !== WORKSPACE_STORAGE_VERSION
   ) {
     return null;
@@ -224,7 +238,7 @@ function normalizeWorkspace(
   }
 
   const fieldMappings =
-    value.version === WORKSPACE_STORAGE_VERSION
+    value.version >= 3
       ? normalizeDatasetFieldMappings(value.fieldMappings)
       : {
           erp: erpData?.fieldMapping ?? { ...DEFAULT_FIELD_MAPPING },
@@ -232,6 +246,15 @@ function normalizeWorkspace(
         };
 
   if (!fieldMappings) {
+    return null;
+  }
+
+  const reconciliationRules =
+    value.version === WORKSPACE_STORAGE_VERSION
+      ? normalizeReconciliationRules(value.reconciliationRules)
+      : { ...DEFAULT_RECONCILIATION_RULES };
+
+  if (!reconciliationRules) {
     return null;
   }
 
@@ -244,6 +267,7 @@ function normalizeWorkspace(
     reviewedExceptionKeys: value.reviewedExceptionKeys,
     reconciliationHistory: reconciliationHistory ?? [],
     fieldMappings,
+    reconciliationRules,
   };
 }
 
@@ -323,13 +347,33 @@ function normalizeReconciliationResult(
     !Array.isArray(value.differences) ||
     !Array.isArray(value.onlyERP) ||
     !Array.isArray(value.onlyCRM) ||
-    !isReconciliationSummary(value.summary) ||
     typeof value.executedAt !== 'string'
   ) {
     return null;
   }
 
-  return value as unknown as ReconciliationResult;
+  const summary = normalizeReconciliationSummary(value.summary);
+
+  if (!summary) {
+    return null;
+  }
+
+  const matched = value.matched.map((record) =>
+    normalizeMatchedRecord(record)
+  );
+
+  if (matched.some((record) => record === null)) {
+    return null;
+  }
+
+  return {
+    matched: matched as MatchedRecord[],
+    differences: value.differences as ReconciliationResult['differences'],
+    onlyERP: value.onlyERP as ReconciliationResult['onlyERP'],
+    onlyCRM: value.onlyCRM as ReconciliationResult['onlyCRM'],
+    summary,
+    executedAt: value.executedAt,
+  };
 }
 
 function normalizeHistoryArray(
@@ -364,7 +408,6 @@ function normalizeHistoryEntry(
   if (
     typeof value.id !== 'string' ||
     typeof value.executedAt !== 'string' ||
-    !isReconciliationSummary(value.summary) ||
     typeof value.exceptionCount !== 'number'
   ) {
     return null;
@@ -372,8 +415,12 @@ function normalizeHistoryEntry(
 
   const erpDataset = normalizeHistoryDatasetSnapshot(value.erpDataset);
   const crmDataset = normalizeHistoryDatasetSnapshot(value.crmDataset);
+  const summary = normalizeReconciliationSummary(value.summary);
+  const reconciliationRules =
+    normalizeReconciliationRules(value.reconciliationRules) ??
+    { ...DEFAULT_RECONCILIATION_RULES };
 
-  if (!erpDataset || !crmDataset) {
+  if (!erpDataset || !crmDataset || !summary) {
     return null;
   }
 
@@ -382,8 +429,9 @@ function normalizeHistoryEntry(
     executedAt: value.executedAt,
     erpDataset,
     crmDataset,
-    summary: value.summary,
+    summary,
     exceptionCount: value.exceptionCount,
+    reconciliationRules,
   };
 }
 
@@ -514,24 +562,119 @@ function getPersistenceErrorMessage(error: unknown): string {
   return 'The workspace could not be saved to browser storage. Current data remains available in memory.';
 }
 
-function isReconciliationSummary(
+function normalizeReconciliationSummary(
   value: unknown
-): value is ReconciliationSummary {
+): ReconciliationSummary | null {
   if (!isObject(value)) {
-    return false;
+    return null;
   }
 
+  if (
+    typeof value.totalERP !== 'number' ||
+    typeof value.totalCRM !== 'number' ||
+    typeof value.totalUnique !== 'number' ||
+    typeof value.matched !== 'number' ||
+    typeof value.exactMatched !== 'number' ||
+    typeof value.normalizedMatched !== 'number' ||
+    typeof value.differences !== 'number' ||
+    typeof value.onlyERP !== 'number' ||
+    typeof value.onlyCRM !== 'number' ||
+    typeof value.matchRate !== 'number'
+  ) {
+    return null;
+  }
+
+  return {
+    totalERP: value.totalERP,
+    totalCRM: value.totalCRM,
+    totalUnique: value.totalUnique,
+    matched: value.matched,
+    exactMatched: value.exactMatched,
+    normalizedMatched: value.normalizedMatched,
+    toleranceMatched:
+      typeof value.toleranceMatched === 'number'
+        ? value.toleranceMatched
+        : 0,
+    differences: value.differences,
+    onlyERP: value.onlyERP,
+    onlyCRM: value.onlyCRM,
+    matchRate: value.matchRate,
+  };
+}
+
+function normalizeMatchedRecord(
+  value: unknown
+): MatchedRecord | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.id !== 'string' ||
+    !isObject(value.erpRecord) ||
+    !isObject(value.crmRecord) ||
+    (value.matchType !== 'Exact Match' &&
+      value.matchType !== 'Normalized Match' &&
+      value.matchType !== 'Tolerance Match') ||
+    !isStringArray(value.normalizedFields)
+  ) {
+    return null;
+  }
+
+  const toleranceFields = isStringArray(value.toleranceFields)
+    ? value.toleranceFields
+    : [];
+
+  return {
+    id: value.id,
+    erpRecord: value.erpRecord as unknown as MatchedRecord['erpRecord'],
+    crmRecord: value.crmRecord as unknown as MatchedRecord['crmRecord'],
+    matchType: value.matchType,
+    normalizedFields:
+      value.normalizedFields as MatchedRecord['normalizedFields'],
+    toleranceFields:
+      toleranceFields as MatchedRecord['toleranceFields'],
+  };
+}
+
+function normalizeReconciliationRules(
+  value: unknown
+): ReconciliationRules | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.normalizeCustomerNames !== 'boolean' ||
+    typeof value.normalizeStatuses !== 'boolean' ||
+    typeof value.amountToleranceEnabled !== 'boolean' ||
+    typeof value.amountTolerance !== 'number' ||
+    !Number.isFinite(value.amountTolerance) ||
+    value.amountTolerance < 0
+  ) {
+    return null;
+  }
+
+  return {
+    normalizeCustomerNames: value.normalizeCustomerNames,
+    normalizeStatuses: value.normalizeStatuses,
+    amountToleranceEnabled: value.amountToleranceEnabled,
+    amountTolerance: value.amountTolerance,
+  };
+}
+
+function areReconciliationRulesDefault(
+  rules: ReconciliationRules
+): boolean {
   return (
-    typeof value.totalERP === 'number' &&
-    typeof value.totalCRM === 'number' &&
-    typeof value.totalUnique === 'number' &&
-    typeof value.matched === 'number' &&
-    typeof value.exactMatched === 'number' &&
-    typeof value.normalizedMatched === 'number' &&
-    typeof value.differences === 'number' &&
-    typeof value.onlyERP === 'number' &&
-    typeof value.onlyCRM === 'number' &&
-    typeof value.matchRate === 'number'
+    rules.normalizeCustomerNames ===
+      DEFAULT_RECONCILIATION_RULES.normalizeCustomerNames &&
+    rules.normalizeStatuses ===
+      DEFAULT_RECONCILIATION_RULES.normalizeStatuses &&
+    rules.amountToleranceEnabled ===
+      DEFAULT_RECONCILIATION_RULES.amountToleranceEnabled &&
+    rules.amountTolerance ===
+      DEFAULT_RECONCILIATION_RULES.amountTolerance
   );
 }
 

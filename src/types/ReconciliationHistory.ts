@@ -3,6 +3,10 @@ import type {
 } from './FieldMapping';
 
 import type {
+  ReconciliationRules,
+} from './ReconciliationRules';
+
+import type {
   ReconciliationSummary,
 } from './ReconciliationResult';
 
@@ -26,4 +30,5 @@ export interface ReconciliationHistoryEntry {
   crmDataset: ReconciliationHistoryDatasetSnapshot;
   summary: ReconciliationSummary;
   exceptionCount: number;
+  reconciliationRules: ReconciliationRules;
 }

@@ -11,10 +11,15 @@ import type {
   ReconciliationResult,
 } from '../types/ReconciliationResult';
 
+import type {
+  ReconciliationRules,
+} from '../types/ReconciliationRules';
+
 export function createReconciliationHistoryEntry(
   result: ReconciliationResult,
   erpData: ImportedDataset,
-  crmData: ImportedDataset
+  crmData: ImportedDataset,
+  reconciliationRules: ReconciliationRules
 ): ReconciliationHistoryEntry {
   return {
     id: createHistoryId(result.executedAt),
@@ -28,6 +33,9 @@ export function createReconciliationHistoryEntry(
       result.summary.differences +
       result.summary.onlyERP +
       result.summary.onlyCRM,
+    reconciliationRules: {
+      ...reconciliationRules,
+    },
   };
 }
 

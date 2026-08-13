@@ -9,7 +9,8 @@ export type ComparableField =
 
 export type MatchType =
   | 'Exact Match'
-  | 'Normalized Match';
+  | 'Normalized Match'
+  | 'Tolerance Match';
 
 export interface FieldDifference {
   field: ComparableField;
@@ -42,6 +43,14 @@ export interface MatchedRecord {
    */
   normalizedFields:
     ComparableField[];
+
+  /*
+   * Fields accepted by a configured
+   * reconciliation rule. V0.1.7 uses
+   * this for absolute amount tolerance.
+   */
+  toleranceFields:
+    ComparableField[];
 }
 
 export interface DifferenceRecord {
@@ -66,13 +75,15 @@ export interface ReconciliationSummary {
 
   /*
    * Total matches:
-   * exact + normalized.
+   * exact + normalized + tolerance.
    */
   matched: number;
 
   exactMatched: number;
 
   normalizedMatched: number;
+
+  toleranceMatched: number;
 
   differences: number;
 

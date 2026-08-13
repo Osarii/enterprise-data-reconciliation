@@ -54,6 +54,7 @@ import {
 } from '../../utils/dataQuality';
 
 import type { ReconciliationResult } from '../../types/ReconciliationResult';
+import type { ReconciliationRules } from '../../types/ReconciliationRules';
 
 type ReportStatus =
   | 'Difference'
@@ -92,6 +93,7 @@ interface PdfReportOptions {
   exceptionRate: number;
   fieldMetrics: FieldMetric[];
   healthStatus: HealthStatus;
+  reconciliationRules: ReconciliationRules;
 }
 
 interface CsvReportOptions {
@@ -103,6 +105,7 @@ interface CsvReportOptions {
   exceptionRecordCount: number;
   exceptionRate: number;
   healthStatus: HealthStatus;
+  reconciliationRules: ReconciliationRules;
 }
 
 const CHART_COLORS = {
@@ -120,6 +123,7 @@ export default function Reports() {
     crmData,
     reconciliationResult,
     reviewedExceptionKeys,
+    reconciliationRules,
   } = useReconciliation();
 
   const rows = useMemo(() => {
@@ -440,6 +444,8 @@ export default function Reports() {
                 exceptionRate,
 
                 healthStatus,
+
+                reconciliationRules,
               })
             }
           >
@@ -479,6 +485,8 @@ export default function Reports() {
                 fieldMetrics,
 
                 healthStatus,
+
+                reconciliationRules,
               })
             }
           >
@@ -753,7 +761,7 @@ export default function Reports() {
           gridTemplateColumns: {
             xs: '1fr',
             sm: 'repeat(2, 1fr)',
-            lg: 'repeat(5, 1fr)',
+            lg: 'repeat(4, 1fr)',
           },
 
           gap: 2,
@@ -767,6 +775,24 @@ export default function Reports() {
             summary.matched
           }
           color="var(--success-fg)"
+        />
+
+        <SmallMetricCard
+          title="Exact"
+          value={summary.exactMatched}
+          color="var(--success-fg)"
+        />
+
+        <SmallMetricCard
+          title="Normalized"
+          value={summary.normalizedMatched}
+          color="var(--info-fg)"
+        />
+
+        <SmallMetricCard
+          title="Tolerance"
+          value={summary.toleranceMatched}
+          color="var(--warning-fg)"
         />
 
         <SmallMetricCard
@@ -2426,6 +2452,7 @@ function downloadCsvReport({
   exceptionRecordCount,
   exceptionRate,
   healthStatus,
+  reconciliationRules,
 }: CsvReportOptions) {
   const lines: string[] = [];
 
@@ -2462,6 +2489,17 @@ function downloadCsvReport({
   );
 
   lines.push('');
+  lines.push('Reconciliation Rule,Value');
+  lines.push(`ID Matching,Exact`);
+  lines.push(`Customer Normalization,${reconciliationRules.normalizeCustomerNames ? 'Enabled' : 'Strict'}`);
+  lines.push(`Status Normalization,${reconciliationRules.normalizeStatuses ? 'Enabled' : 'Strict'}`);
+  lines.push(`Amount Comparison,${escapeCsv(
+    reconciliationRules.amountToleranceEnabled
+      ? `Absolute tolerance ±${reconciliationRules.amountTolerance}`
+      : 'Strict'
+  )}`);
+
+  lines.push('');
 
   lines.push(
     'Metric,Value'
@@ -2473,6 +2511,18 @@ function downloadCsvReport({
 
   lines.push(
     `Matched,${result.summary.matched}`
+  );
+
+  lines.push(
+    `Exact Matches,${result.summary.exactMatched}`
+  );
+
+  lines.push(
+    `Normalized Matches,${result.summary.normalizedMatched}`
+  );
+
+  lines.push(
+    `Tolerance Matches,${result.summary.toleranceMatched}`
   );
 
   lines.push(
@@ -2620,6 +2670,7 @@ function downloadPdfReport({
   exceptionRate,
   fieldMetrics,
   healthStatus,
+  reconciliationRules,
 }: PdfReportOptions) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -2780,7 +2831,7 @@ function downloadPdfReport({
     y,
     pageWidth -
       margin * 2,
-    22,
+    30,
     4,
     4,
     'F'
@@ -2824,7 +2875,18 @@ function downloadPdfReport({
     y + 16
   );
 
-  y += 31;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.2);
+  doc.setTextColor(95, 95, 102);
+  doc.text(
+    safePdfText(
+      `Rules: ID exact | Customer normalization ${reconciliationRules.normalizeCustomerNames ? 'on' : 'strict'} | Status normalization ${reconciliationRules.normalizeStatuses ? 'on' : 'strict'} | Amount ${reconciliationRules.amountToleranceEnabled ? `tolerance ±${reconciliationRules.amountTolerance}` : 'strict'}`
+    ),
+    margin + 6,
+    y + 24
+  );
+
+  y += 39;
 
   /* METRICS */
 
@@ -2983,13 +3045,39 @@ function downloadPdfReport({
 
   const breakdown = [
     {
-      label: 'Matched',
+      label: 'Exact',
       value:
-        result.summary.matched,
+        result.summary.exactMatched,
       total:
         result.summary.totalUnique,
       color:
         [36, 138, 61] as [
+          number,
+          number,
+          number,
+        ],
+    },
+    {
+      label: 'Normalized',
+      value:
+        result.summary.normalizedMatched,
+      total:
+        result.summary.totalUnique,
+      color:
+        [0, 113, 227] as [
+          number,
+          number,
+          number,
+        ],
+    },
+    {
+      label: 'Tolerance',
+      value:
+        result.summary.toleranceMatched,
+      total:
+        result.summary.totalUnique,
+      color:
+        [180, 115, 15] as [
           number,
           number,
           number,
@@ -3148,6 +3236,8 @@ function downloadPdfReport({
     getConsistencySummary(
       result.summary.matchRate
     ),
+
+    `${result.summary.matched} records matched: ${result.summary.exactMatched} exact, ${result.summary.normalizedMatched} normalized and ${result.summary.toleranceMatched} accepted by configured tolerance rules.`,
 
     `${exceptionRecordCount} of ${result.summary.totalUnique} unique records contain at least one discrepancy, producing an exception rate of ${exceptionRate.toFixed(
       1

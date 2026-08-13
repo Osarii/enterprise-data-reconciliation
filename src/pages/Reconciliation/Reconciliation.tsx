@@ -69,6 +69,7 @@ export default function Reconciliation() {
     crmData,
 
     reconciliationResult,
+    reconciliationRules,
 
     runReconciliation,
   } =
@@ -281,7 +282,7 @@ export default function Reconciliation() {
         />
       </Box>
 
-      {/* NORMALIZATION INFO */}
+      {/* ACTIVE RECONCILIATION RULES */}
       <Alert
         severity="info"
         icon={
@@ -291,17 +292,10 @@ export default function Reconciliation() {
         }
         sx={{
           mb: 3,
-
-          borderRadius:
-            '14px',
+          borderRadius: '14px',
         }}
       >
-        Text normalization is active.
-        Comparisons ignore leading or
-        trailing spaces, repeated
-        spaces, capitalization and
-        accents. Amounts remain strict
-        numeric comparisons.
+        Active rules: customer normalization {reconciliationRules.normalizeCustomerNames ? 'on' : 'off'}, status normalization {reconciliationRules.normalizeStatuses ? 'on' : 'off'}, amount tolerance {reconciliationRules.amountToleranceEnabled ? `±${reconciliationRules.amountTolerance}` : 'strict'}. ID matching remains exact.
       </Alert>
 
       {!reconciliationResult ? (
@@ -420,7 +414,7 @@ export default function Reconciliation() {
 
                   sm: 'repeat(2, 1fr)',
 
-                  lg: 'repeat(6, 1fr)',
+                  lg: 'repeat(auto-fit, minmax(135px, 1fr))',
                 },
 
               gap: 2,
@@ -447,6 +441,17 @@ export default function Reconciliation() {
                   .normalizedMatched
               }
               subtitle="Formatting adjusted"
+              type="normalized"
+            />
+
+            <ResultCard
+              title="Tolerance"
+              value={
+                reconciliationResult
+                  .summary
+                  .toleranceMatched
+              }
+              subtitle="Accepted by rule"
               type="normalized"
             />
 
@@ -544,10 +549,7 @@ export default function Reconciliation() {
                       mt: 0.4,
                     }}
                   >
-                    Distinguishes exact
-                    matches from records
-                    matched after data
-                    normalization.
+                    Distinguishes exact matches from records accepted after normalization or configured tolerance rules.
                   </Typography>
                 </Box>
 
@@ -610,6 +612,10 @@ export default function Reconciliation() {
 
                         <TableCell>
                           Normalized Fields
+                        </TableCell>
+
+                        <TableCell>
+                          Tolerance Fields
                         </TableCell>
                       </TableRow>
                     </TableHead>
@@ -720,6 +726,41 @@ export default function Reconciliation() {
                                         />
                                       )
                                     )}
+                                  </Box>
+                                )}
+                              </TableCell>
+
+                              <TableCell>
+                                {record.toleranceFields.length === 0 ? (
+                                  <Typography
+                                    sx={{
+                                      color: 'text.secondary',
+                                      fontSize: '0.78rem',
+                                    }}
+                                  >
+                                    —
+                                  </Typography>
+                                ) : (
+                                  <Box
+                                    sx={{
+                                      display: 'flex',
+                                      gap: 0.7,
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    {record.toleranceFields.map((field) => (
+                                      <Chip
+                                        key={field}
+                                        size="small"
+                                        label={formatFieldName(field)}
+                                        sx={{
+                                          backgroundColor: 'var(--warning-soft)',
+                                          color: 'var(--warning-fg)',
+                                          fontSize: '0.67rem',
+                                          fontWeight: 600,
+                                        }}
+                                      />
+                                    ))}
                                   </Box>
                                 )}
                               </TableCell>
@@ -1221,6 +1262,10 @@ function MatchChip({
     matchType ===
     'Normalized Match';
 
+  const tolerance =
+    matchType ===
+    'Tolerance Match';
+
   return (
     <Chip
       size="small"
@@ -1238,14 +1283,18 @@ function MatchChip({
       label={matchType}
       sx={{
         backgroundColor:
-          normalized
-            ? 'var(--info-soft-alt)'
-            : 'var(--success-soft)',
+          tolerance
+            ? 'var(--warning-soft)'
+            : normalized
+              ? 'var(--info-soft-alt)'
+              : 'var(--success-soft)',
 
         color:
-          normalized
-            ? 'var(--info-fg)'
-            : 'var(--success-fg)',
+          tolerance
+            ? 'var(--warning-fg)'
+            : normalized
+              ? 'var(--info-fg)'
+              : 'var(--success-fg)',
 
         fontSize:
           '0.68rem',

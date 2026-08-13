@@ -81,6 +81,7 @@ interface HistoryChartRow {
   matchRate: number;
   dataQuality: number;
   exceptions: number;
+  toleranceMatches: number;
 }
 
 export default function History() {
@@ -131,6 +132,7 @@ export default function History() {
             getHistoryEntryAverageQuality(entry)
           ),
           exceptions: entry.exceptionCount,
+          toleranceMatches: entry.summary.toleranceMatched,
         })),
     [reconciliationHistory]
   );
@@ -248,7 +250,7 @@ export default function History() {
           borderRadius: '14px',
         }}
       >
-        V0.1.6 keeps compact browser snapshots for the latest {RECONCILIATION_HISTORY_LIMIT} runs. Historical metrics, charts and field-mapping metadata can now be exported to PDF.
+        V0.1.7 keeps compact browser snapshots for the latest {RECONCILIATION_HISTORY_LIMIT} runs. Historical metrics, charts, field-mapping metadata and reconciliation-rule profiles can be exported to PDF.
       </Alert>
 
       <Box
@@ -578,7 +580,7 @@ function HistoryCharts({
               fontSize: '0.95rem',
             }}
           >
-            Exceptions by Run
+            Exceptions & Tolerance Matches by Run
           </Typography>
 
           <Typography
@@ -589,7 +591,7 @@ function HistoryCharts({
               fontSize: '0.74rem',
             }}
           >
-            Difference, Only ERP and Only CRM records combined.
+            Compare exception volume with records accepted by configured amount tolerance rules.
           </Typography>
 
           <Box sx={{ width: '100%', height: 280 }}>
@@ -614,6 +616,12 @@ function HistoryCharts({
                   dataKey="exceptions"
                   name="Exceptions"
                   fill="#E58A22"
+                  radius={[6, 6, 0, 0]}
+                />
+                <Bar
+                  dataKey="toleranceMatches"
+                  name="Tolerance Matches"
+                  fill="#0071E3"
                   radius={[6, 6, 0, 0]}
                 />
               </BarChart>
@@ -865,7 +873,7 @@ function HistoryDetail({
             gridTemplateColumns: {
               xs: 'repeat(2, minmax(0, 1fr))',
               md: 'repeat(4, minmax(0, 1fr))',
-              xl: 'repeat(7, minmax(0, 1fr))',
+              xl: 'repeat(8, minmax(0, 1fr))',
             },
             gap: 1,
           }}
@@ -887,6 +895,10 @@ function HistoryDetail({
             value={entry.summary.normalizedMatched}
           />
           <DetailMetric
+            label="Tolerance"
+            value={entry.summary.toleranceMatched}
+          />
+          <DetailMetric
             label="Differences"
             value={entry.summary.differences}
           />
@@ -898,6 +910,32 @@ function HistoryDetail({
             label="Only CRM"
             value={entry.summary.onlyCRM}
           />
+        </Box>
+
+        <Box
+          sx={{
+            mt: 2,
+            p: 2,
+            borderRadius: '14px',
+            backgroundColor: 'var(--surface-subtle)',
+            border: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
+            Reconciliation Rule Profile
+          </Typography>
+
+          <Typography
+            sx={{
+              mt: 0.7,
+              color: 'text.secondary',
+              fontSize: '0.75rem',
+              lineHeight: 1.55,
+            }}
+          >
+            Customer normalization: {entry.reconciliationRules.normalizeCustomerNames ? 'Enabled' : 'Strict'} · Status normalization: {entry.reconciliationRules.normalizeStatuses ? 'Enabled' : 'Strict'} · Amount comparison: {entry.reconciliationRules.amountToleranceEnabled ? `Absolute tolerance ±${entry.reconciliationRules.amountTolerance}` : 'Strict'} · ID: Exact
+          </Typography>
         </Box>
 
         {entry.exceptionCount > 0 && (
@@ -1230,6 +1268,7 @@ function exportHistoryPdf({
       'CRM Dataset',
       'Match Rate',
       'Matched',
+      'Tolerance',
       'Exceptions',
       'Avg. Quality',
     ]],
@@ -1239,6 +1278,7 @@ function exportHistoryPdf({
       entry.crmDataset.fileName,
       `${entry.summary.matchRate.toFixed(1)}%`,
       String(entry.summary.matched),
+      String(entry.summary.toleranceMatched),
       String(entry.exceptionCount),
       `${getHistoryEntryAverageQuality(entry).toFixed(1)}%`,
     ]),
@@ -1260,13 +1300,14 @@ function exportHistoryPdf({
       fillColor: [248, 248, 250],
     },
     columnStyles: {
-      0: { cellWidth: 38 },
-      1: { cellWidth: 56 },
-      2: { cellWidth: 56 },
-      3: { cellWidth: 25, halign: 'center' },
-      4: { cellWidth: 20, halign: 'center' },
-      5: { cellWidth: 22, halign: 'center' },
-      6: { cellWidth: 28, halign: 'center' },
+      0: { cellWidth: 34 },
+      1: { cellWidth: 49 },
+      2: { cellWidth: 49 },
+      3: { cellWidth: 23, halign: 'center' },
+      4: { cellWidth: 18, halign: 'center' },
+      5: { cellWidth: 18, halign: 'center' },
+      6: { cellWidth: 20, halign: 'center' },
+      7: { cellWidth: 28, halign: 'center' },
     },
   });
 
@@ -1276,13 +1317,13 @@ function exportHistoryPdf({
 
   if (mappingStartY > pageHeight - 37) {
     doc.addPage();
-    drawPdfContinuationHeader(doc, 'Integration Mapping Audit');
+    drawPdfContinuationHeader(doc, 'Integration & Rule Audit');
     mappingStartY = 27;
   } else {
     drawPdfSectionTitle(
       doc,
-      'Integration Mapping Audit',
-      'Source-to-canonical field mapping captured with every run',
+      'Integration & Rule Audit',
+      'Field mapping and reconciliation rules captured with every run',
       margin,
       mappingStartY
     );
@@ -1294,7 +1335,7 @@ function exportHistoryPdf({
     doc.setFontSize(7.5);
     doc.setTextColor(95, 95, 102);
     doc.text(
-      'Source-to-canonical field mapping captured with every reconciliation snapshot.',
+      'Source-to-canonical field mapping and reconciliation rules captured with every reconciliation snapshot.',
       margin,
       32
     );
@@ -1308,11 +1349,13 @@ function exportHistoryPdf({
       'Executed',
       'ERP Mapping',
       'CRM Mapping',
+      'Rules',
     ]],
     body: history.map((entry) => [
       formatDate(entry.executedAt),
       formatMappingForPdf(entry.erpDataset.fieldMapping),
       formatMappingForPdf(entry.crmDataset.fieldMapping),
+      formatRulesForPdf(entry),
     ]),
     styles: {
       fontSize: 7,
@@ -1333,9 +1376,10 @@ function exportHistoryPdf({
       fillColor: [248, 248, 250],
     },
     columnStyles: {
-      0: { cellWidth: 39 },
-      1: { cellWidth: 114 },
-      2: { cellWidth: 114 },
+      0: { cellWidth: 35 },
+      1: { cellWidth: 76 },
+      2: { cellWidth: 76 },
+      3: { cellWidth: 80 },
     },
   });
 
@@ -1495,6 +1539,7 @@ function drawLatestRunSnapshot(
     ['Matched', entry.summary.matched],
     ['Exact', entry.summary.exactMatched],
     ['Normalized', entry.summary.normalizedMatched],
+    ['Tolerance', entry.summary.toleranceMatched],
     ['Exceptions', entry.exceptionCount],
   ] as const;
 
@@ -1907,9 +1952,12 @@ function drawPdfExceptionChart(
   height: number
 ) {
   const chronological = [...history].reverse();
-  const maxExceptions = Math.max(
+  const maxCount = Math.max(
     1,
-    ...chronological.map((entry) => entry.exceptionCount)
+    ...chronological.flatMap((entry) => [
+      entry.exceptionCount,
+      entry.summary.toleranceMatched,
+    ])
   );
 
   doc.setFillColor(252, 252, 253);
@@ -1919,39 +1967,53 @@ function drawPdfExceptionChart(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(25, 25, 29);
-  doc.text('Exceptions by Run', x + 5, y + 6.5);
+  doc.text('Exceptions & Tolerance Matches', x + 5, y + 6.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(5.8);
   doc.setTextColor(115, 115, 122);
-  doc.text('Differences + ERP-only + CRM-only', x + 5, y + 10.5);
+  doc.text('Operational exceptions compared with rule-accepted amount matches', x + 5, y + 10.5);
 
   const chartX = x + 6;
   const chartY = y + 15;
   const chartWidth = width - 12;
   const chartHeight = height - 22;
   const slotWidth = chartWidth / chronological.length;
-  const barWidth = Math.max(1.5, Math.min(6, slotWidth * 0.56));
+  const barWidth = Math.max(1.2, Math.min(3.2, slotWidth * 0.28));
 
   doc.setDrawColor(236, 236, 240);
   doc.line(chartX, chartY + chartHeight, chartX + chartWidth, chartY + chartHeight);
 
   chronological.forEach((entry, index) => {
-    const barHeight =
-      (entry.exceptionCount / maxExceptions) * chartHeight;
-    const barX =
-      chartX + slotWidth * index + (slotWidth - barWidth) / 2;
-    const barY = chartY + chartHeight - barHeight;
+    const centerX = chartX + slotWidth * index + slotWidth / 2;
 
-    doc.setFillColor(229, 138, 34);
+    const exceptionHeight =
+      (entry.exceptionCount / maxCount) * chartHeight;
+    const toleranceHeight =
+      (entry.summary.toleranceMatched / maxCount) * chartHeight;
+
     if (entry.exceptionCount > 0) {
+      doc.setFillColor(229, 138, 34);
       doc.roundedRect(
-        barX,
-        barY,
+        centerX - barWidth - 0.5,
+        chartY + chartHeight - exceptionHeight,
         barWidth,
-        Math.max(1, barHeight),
-        0.8,
-        0.8,
+        Math.max(1, exceptionHeight),
+        0.7,
+        0.7,
+        'F'
+      );
+    }
+
+    if (entry.summary.toleranceMatched > 0) {
+      doc.setFillColor(0, 113, 227);
+      doc.roundedRect(
+        centerX + 0.5,
+        chartY + chartHeight - toleranceHeight,
+        barWidth,
+        Math.max(1, toleranceHeight),
+        0.7,
+        0.7,
         'F'
       );
     }
@@ -1965,26 +2027,27 @@ function drawPdfExceptionChart(
       doc.setTextColor(135, 135, 142);
       doc.text(
         String(index + 1),
-        barX + barWidth / 2,
+        centerX,
         y + height - 2.1,
         { align: 'center' }
       );
     }
   });
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(229, 138, 34);
-  doc.text(
-    String(
-      chronological.reduce(
-        (total, entry) => total + entry.exceptionCount,
-        0
-      )
-    ),
-    x + width - 5,
-    y + 8,
-    { align: 'right' }
+  drawPdfLegendDot(
+    doc,
+    x + width - 58,
+    y + 5.2,
+    [229, 138, 34],
+    'Exceptions'
+  );
+
+  drawPdfLegendDot(
+    doc,
+    x + width - 28,
+    y + 5.2,
+    [0, 113, 227],
+    'Tolerance'
   );
 }
 
@@ -2096,6 +2159,20 @@ function truncatePdfText(
   }
 
   return `${result}...`;
+}
+
+
+function formatRulesForPdf(
+  entry: ReconciliationHistoryEntry
+): string {
+  const rules = entry.reconciliationRules;
+
+  return [
+    `Customer normalization: ${rules.normalizeCustomerNames ? 'On' : 'Strict'}`,
+    `Status normalization: ${rules.normalizeStatuses ? 'On' : 'Strict'}`,
+    `Amount: ${rules.amountToleranceEnabled ? `±${rules.amountTolerance}` : 'Strict'}`,
+    'ID: Exact',
+  ].join(' | ');
 }
 
 function addPdfFooters(doc: jsPDF) {

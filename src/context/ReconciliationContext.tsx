@@ -11,12 +11,20 @@ import {
 } from '../config/fieldMappingConfig';
 
 import {
+  DEFAULT_RECONCILIATION_RULES,
+} from '../config/reconciliationRulesConfig';
+
+import {
   RECONCILIATION_HISTORY_LIMIT,
 } from '../config/storageConfig';
 
 import {
   reconcileData,
 } from '../utils/reconcileData';
+
+import {
+  sanitizeReconciliationRules,
+} from '../utils/reconciliationRules';
 
 import {
   createReconciliationHistoryEntry,
@@ -38,6 +46,10 @@ import type {
 import type {
   ReconciliationHistoryEntry,
 } from '../types/ReconciliationHistory';
+
+import type {
+  ReconciliationRules,
+} from '../types/ReconciliationRules';
 
 export type {
   ImportedDataset,
@@ -67,6 +79,7 @@ interface ReconciliationContextType {
   reviewedExceptionKeys: string[];
   reconciliationHistory: ReconciliationHistoryEntry[];
   fieldMappings: DatasetFieldMappings;
+  reconciliationRules: ReconciliationRules;
   persistenceStatus: WorkspacePersistenceStatus;
   persistenceError: string | null;
   lastSavedAt: string | null;
@@ -86,6 +99,12 @@ interface ReconciliationContextType {
   ) => void;
 
   resetFieldMappings: () => void;
+
+  setReconciliationRules: (
+    rules: ReconciliationRules
+  ) => void;
+
+  resetReconciliationRules: () => void;
 
   runReconciliation: () => ReconciliationResult | null;
 
@@ -114,6 +133,7 @@ interface WorkspaceState {
   reviewedExceptionKeys: string[];
   reconciliationHistory: ReconciliationHistoryEntry[];
   fieldMappings: DatasetFieldMappings;
+  reconciliationRules: ReconciliationRules;
 }
 
 const ReconciliationContext =
@@ -142,6 +162,9 @@ function createInitialWorkspaceState(): {
           erp: { ...DEFAULT_FIELD_MAPPING },
           crm: { ...DEFAULT_FIELD_MAPPING },
         },
+        reconciliationRules: {
+          ...DEFAULT_RECONCILIATION_RULES,
+        },
       },
       restored: false,
       savedAt: null,
@@ -163,6 +186,9 @@ function createInitialWorkspaceState(): {
       fieldMappings: {
         erp: { ...restoredWorkspace.fieldMappings.erp },
         crm: { ...restoredWorkspace.fieldMappings.crm },
+      },
+      reconciliationRules: {
+        ...restoredWorkspace.reconciliationRules,
       },
     },
     restored: true,
@@ -292,6 +318,23 @@ export function ReconciliationProvider({
     }));
   };
 
+  const setReconciliationRules = (
+    rules: ReconciliationRules
+  ) => {
+    commitWorkspace((current) => ({
+      ...current,
+      reconciliationRules: sanitizeReconciliationRules(rules),
+      reconciliationResult: null,
+      reviewedExceptionKeys: [],
+    }));
+  };
+
+  const resetReconciliationRules = () => {
+    setReconciliationRules({
+      ...DEFAULT_RECONCILIATION_RULES,
+    });
+  };
+
   const runReconciliation = () => {
     const current = workspaceRef.current;
 
@@ -315,14 +358,16 @@ export function ReconciliationProvider({
 
     const result = reconcileData(
       current.erpData.records,
-      current.crmData.records
+      current.crmData.records,
+      current.reconciliationRules
     );
 
     const historyEntry =
       createReconciliationHistoryEntry(
         result,
         current.erpData,
-        current.crmData
+        current.crmData,
+        current.reconciliationRules
       );
 
     commitWorkspace({
@@ -432,6 +477,7 @@ export function ReconciliationProvider({
         reconciliationHistory:
           workspace.reconciliationHistory,
         fieldMappings: workspace.fieldMappings,
+        reconciliationRules: workspace.reconciliationRules,
         persistenceStatus,
         persistenceError,
         lastSavedAt,
@@ -440,6 +486,8 @@ export function ReconciliationProvider({
         setCrmData,
         setFieldMapping,
         resetFieldMappings,
+        setReconciliationRules,
+        resetReconciliationRules,
         runReconciliation,
         setExceptionReviewed,
         setExceptionsReviewed,

@@ -7,7 +7,10 @@ import {
   CardContent,
   Chip,
   Divider,
+  FormControlLabel,
   Stack,
+  Switch,
+  TextField,
   Typography,
 } from '@mui/material';
 
@@ -53,6 +56,9 @@ export default function Settings() {
     clearData,
     clearHistory,
     resetFieldMappings,
+    reconciliationRules,
+    setReconciliationRules,
+    resetReconciliationRules,
   } = useReconciliation();
 
   const {
@@ -96,6 +102,25 @@ export default function Settings() {
     if (shouldReset) {
       resetFieldMappings();
     }
+  };
+
+  const handleResetRules = () => {
+    const shouldReset = window.confirm(
+      'Reset reconciliation rules to the V0.1 defaults? The current reconciliation result will be cleared because rule changes require a new run.'
+    );
+
+    if (shouldReset) {
+      resetReconciliationRules();
+    }
+  };
+
+  const updateRules = (
+    changes: Partial<typeof reconciliationRules>
+  ) => {
+    setReconciliationRules({
+      ...reconciliationRules,
+      ...changes,
+    });
   };
 
   return (
@@ -277,6 +302,148 @@ export default function Settings() {
             <Box
               sx={{
                 display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 2,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Box>
+                <Typography
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                  }}
+                >
+                  Reconciliation Rules
+                </Typography>
+
+                <Typography
+                  sx={{
+                    mt: 0.5,
+                    color: 'text.secondary',
+                    fontSize: '0.82rem',
+                    maxWidth: 780,
+                  }}
+                >
+                  Configure how non-key fields are compared. ID matching remains exact. Changing a rule clears the current reconciliation result so the next run is auditable against the active profile.
+                </Typography>
+              </Box>
+
+              <Button
+                variant="outlined"
+                startIcon={<RotateCcw size={16} />}
+                onClick={handleResetRules}
+              >
+                Reset rules
+              </Button>
+            </Box>
+
+            <Divider sx={{ my: 2.5 }} />
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  lg: 'repeat(3, minmax(0, 1fr))',
+                },
+                gap: 1.5,
+              }}
+            >
+              <RuleSettingCard
+                title="Customer normalization"
+                description="Accept case, spacing and diacritic differences in customer names."
+              >
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={reconciliationRules.normalizeCustomerNames}
+                      onChange={(_, checked) =>
+                        updateRules({ normalizeCustomerNames: checked })
+                      }
+                    />
+                  }
+                  label={
+                    reconciliationRules.normalizeCustomerNames
+                      ? 'Enabled'
+                      : 'Strict text'
+                  }
+                />
+              </RuleSettingCard>
+
+              <RuleSettingCard
+                title="Status normalization"
+                description="Accept normalized equivalents such as Activo and ACTIVO."
+              >
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={reconciliationRules.normalizeStatuses}
+                      onChange={(_, checked) =>
+                        updateRules({ normalizeStatuses: checked })
+                      }
+                    />
+                  }
+                  label={
+                    reconciliationRules.normalizeStatuses
+                      ? 'Enabled'
+                      : 'Strict text'
+                  }
+                />
+              </RuleSettingCard>
+
+              <RuleSettingCard
+                title="Amount tolerance"
+                description="Treat absolute amount differences within the configured threshold as a Tolerance Match."
+              >
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={reconciliationRules.amountToleranceEnabled}
+                      onChange={(_, checked) =>
+                        updateRules({ amountToleranceEnabled: checked })
+                      }
+                    />
+                  }
+                  label={
+                    reconciliationRules.amountToleranceEnabled
+                      ? 'Enabled'
+                      : 'Strict amount'
+                  }
+                />
+
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Absolute tolerance"
+                  value={reconciliationRules.amountTolerance}
+                  disabled={!reconciliationRules.amountToleranceEnabled}
+                  slotProps={{
+                    htmlInput: { min: 0, step: 0.01 },
+                  }}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+
+                    updateRules({
+                      amountTolerance:
+                        Number.isFinite(value) && value >= 0
+                          ? value
+                          : 0,
+                    });
+                  }}
+                  sx={{ mt: 1, width: '100%' }}
+                />
+              </RuleSettingCard>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: 'flex',
                 alignItems: 'flex-start',
                 justifyContent: 'space-between',
                 gap: 2,
@@ -404,7 +571,7 @@ export default function Settings() {
                   lineHeight: 1.55,
                 }}
               >
-                V0.1.6 persists the active workspace, reusable field-mapping profiles and compact historical reconciliation snapshots with browser localStorage. Historical entries keep summary-level metrics and mapping metadata rather than duplicating every raw record. Audit-grade persistence will move to PostgreSQL in V0.2.
+                V0.1.7 persists the active workspace, reusable field-mapping profiles, reconciliation rules and compact historical reconciliation snapshots with browser localStorage. Historical entries keep summary-level metrics and mapping metadata rather than duplicating every raw record. Audit-grade persistence will move to PostgreSQL in V0.2.
               </Typography>
 
               {restoredFromStorage && (
@@ -542,6 +709,49 @@ function MappingProfileCard({
           </Box>
         ))}
       </Box>
+    </Box>
+  );
+}
+
+
+interface RuleSettingCardProps {
+  title: string;
+  description: string;
+  children: ReactNode;
+}
+
+function RuleSettingCard({
+  title,
+  description,
+  children,
+}: RuleSettingCardProps) {
+  return (
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: '14px',
+        backgroundColor: 'var(--surface-subtle)',
+        border: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Typography sx={{ fontWeight: 700, fontSize: '0.82rem' }}>
+        {title}
+      </Typography>
+
+      <Typography
+        sx={{
+          mt: 0.45,
+          mb: 1,
+          color: 'text.secondary',
+          fontSize: '0.74rem',
+          lineHeight: 1.45,
+        }}
+      >
+        {description}
+      </Typography>
+
+      {children}
     </Box>
   );
 }
