@@ -1,129 +1,180 @@
 # Enterprise Data Reconciliation Platform
 
+[![Build and Test](https://github.com/Osarii/enterprise-data-reconciliation/actions/workflows/ci.yml/badge.svg)](https://github.com/Osarii/enterprise-data-reconciliation/actions/workflows/ci.yml)
 ![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react\&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript\&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-Build-646CFF?logo=vite\&logoColor=white)
 ![Material UI](https://img.shields.io/badge/Material_UI-UI-007FFF?logo=mui\&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-43_Tests-6E9F18?logo=vitest\&logoColor=white)
+![Version](https://img.shields.io/badge/Version-v0.1.9-blue)
 ![Status](https://img.shields.io/badge/Status-Active_Development-orange)
-![Version](https://img.shields.io/badge/Version-v0.1.6-blue)
 
-A modern enterprise-oriented data reconciliation platform designed to compare ERP and CRM datasets, detect inconsistencies, evaluate data quality, manage exceptions, analyze reconciliation performance, and generate executive reports.
+A modern enterprise-oriented data reconciliation platform designed to compare ERP and CRM datasets, detect inconsistencies, evaluate data quality, apply configurable reconciliation rules, manage exceptions, analyze historical performance, and generate executive reports.
 
-The project focuses on solving a common enterprise problem:
+The project explores a common enterprise data problem:
 
-> **How can organizations reliably detect discrepancies between business systems that are expected to contain equivalent information?**
+> **How can organizations reliably identify, explain, review, and report inconsistencies between business systems that are expected to contain equivalent information?**
 
 ---
 
-## Overview
+# Overview
 
-Enterprise systems frequently store overlapping information across platforms such as:
+Organizations frequently operate multiple systems containing overlapping business information:
 
-* ERP systems
-* CRM platforms
-* Financial systems
+* ERP platforms
+* CRM systems
 * Billing platforms
+* Financial systems
 * Customer databases
-* Operational systems
+* Internal operational applications
 
-Over time, these systems may become inconsistent because of:
+Over time, inconsistencies can appear because of:
 
-* Manual data entry
-* Synchronization failures
-* Duplicate records
-* Inconsistent formatting
-* Invalid values
-* Missing records
-* Integration errors
-* Schema differences between systems
+* manual data entry
+* synchronization failures
+* duplicated records
+* formatting inconsistencies
+* missing information
+* incorrect values
+* schema differences
+* integration failures
+* business rule differences
 
-**Enterprise Data Reconciliation Platform** provides a workflow for importing two datasets, validating their quality, mapping source fields, normalizing comparable information, reconciling records, reviewing exceptions, analyzing historical performance, and generating reports.
+**Enterprise Data Reconciliation Platform** provides an end-to-end frontend workflow for:
+
+1. importing ERP and CRM datasets
+2. mapping source columns
+3. validating data quality
+4. detecting blocking issues and warnings
+5. normalizing comparable values
+6. configuring reconciliation rules
+7. reconciling records
+8. reviewing exceptions
+9. measuring processing performance
+10. analyzing historical executions
+11. exporting CSV and PDF reports
 
 ---
 
 # Current Version
 
-## v0.1.6 — Configurable Field Mapping + History Analytics
+## V0.1.9 — Testing, Reliability & GitHub CI
 
 The current development version includes:
 
-* ERP and CRM CSV imports
-* Configurable field mapping
-* Automatic field mapping suggestions
-* CSV parsing with PapaParse
-* Schema validation with Zod
-* Advanced data quality validation
-* Duplicate ID detection
-* Configurable status validation
-* Suspicious ID detection
-* Structured validation issues
-* Blocking and warning severities
+* configurable field mapping
+* advanced validation
+* structured Data Quality Issues
 * Data Quality Score V2
-* Normalization engine
-* Exact Match detection
-* Normalized Match detection
+* duplicate detection
+* suspicious ID detection
+* configurable status validation
+* normalization engine
+* configurable reconciliation rules
+* amount tolerance
+* Exact Match
+* Normalized Match
+* Tolerance Match
 * Difference detection
-* ERP-only records
-* CRM-only records
-* Exception management
-* Executive dashboard
-* Reconciliation reports
-* Reconciliation history
-* Historical metrics
-* Historical charts
-* CSV export
-* PDF export
-* Dark mode
-* Browser persistence
+* ERP-only and CRM-only detection
+* exception management
+* executive metrics
+* Recharts visualizations
+* CSV exports
+* PDF exports
+* reconciliation history
+* history analytics
+* field mapping audit
+* reconciliation rule audit
+* processing performance metrics
+* Web Worker reconciliation
+* large dataset safety
+* workspace persistence
+* dark mode
+* automated regression tests
+* GitHub Actions CI
 
-The application currently operates entirely on the frontend.
+The current application is intentionally **frontend-first**.
 
-A backend architecture using **NestJS, PostgreSQL, and Prisma** is planned for a future development phase.
-
----
-
-# Screenshots
-
-Screenshots will be added as the user interface continues to evolve.
-
-Recommended screenshots for the final portfolio presentation:
-
-* Dashboard
-* Imports and Data Quality
-* Reconciliation Analysis
-* Exceptions Workflow
-* Reports
-* Reconciliation History
-* Dark Mode
+A backend architecture using **NestJS, PostgreSQL, and Prisma** is planned for the next major development phase.
 
 ---
 
-# Key Features
+# CI Status
 
-## CSV Import
+Every push to `main` and every Pull Request is validated automatically with GitHub Actions.
 
-ERP and CRM datasets can be independently imported using CSV files.
+Current CI pipeline:
 
-The import pipeline includes:
+```text
+GitHub Push / Pull Request
+          ↓
+Install Dependencies
+          ↓
+Vitest Regression Suite
+          ↓
+TypeScript Validation
+          ↓
+Vite Production Build
+          ↓
+Build & Test ✅
+```
 
-* CSV parsing
-* Header inspection
-* Configurable field mapping
-* Structural validation
-* Required field validation
-* Duplicate detection
-* Value validation
-* Status validation
-* Suspicious identifier detection
-* Data quality analysis
+Current automated test status:
+
+```text
+Test Files: 9 passed
+Tests:      43 passed
+Status:     ✅ Passing
+```
+
+---
+
+# Core Workflow
+
+```mermaid
+flowchart TD
+    ERP["ERP CSV"] --> MAP["Field Mapping"]
+    CRM["CRM CSV"] --> MAP
+
+    MAP --> PARSE["CSV Parsing"]
+    PARSE --> VALIDATE["Advanced Validation"]
+    VALIDATE --> QUALITY["Data Quality Analysis"]
+
+    QUALITY --> RULES["Reconciliation Rules"]
+    RULES --> WORKER["Web Worker"]
+
+    WORKER --> NORMALIZE["Normalization Engine"]
+    NORMALIZE --> ENGINE["Reconciliation Engine"]
+
+    ENGINE --> EXACT["Exact Match"]
+    ENGINE --> NORMALIZED["Normalized Match"]
+    ENGINE --> TOLERANCE["Tolerance Match"]
+    ENGINE --> DIFFERENCE["Difference"]
+    ENGINE --> ERPONLY["Only ERP"]
+    ENGINE --> CRMONLY["Only CRM"]
+
+    EXACT --> REPORTS["Dashboard and Reports"]
+    NORMALIZED --> REPORTS
+    TOLERANCE --> REPORTS
+
+    DIFFERENCE --> EXCEPTIONS["Exceptions Workflow"]
+    ERPONLY --> EXCEPTIONS
+    CRMONLY --> EXCEPTIONS
+
+    EXCEPTIONS --> REPORTS
+
+    REPORTS --> HISTORY["Reconciliation History"]
+    HISTORY --> EXPORT["CSV and PDF Export"]
+```
 
 ---
 
 # Configurable Field Mapping
 
-Enterprise systems rarely use identical schemas.
+Enterprise systems rarely expose identical schemas.
 
-An ERP system may contain:
+An ERP dataset might contain:
 
 ```text
 customer_id
@@ -132,7 +183,7 @@ balance
 status
 ```
 
-while a CRM system may contain:
+while a CRM dataset might contain:
 
 ```text
 account_code
@@ -141,7 +192,7 @@ amount_due
 lifecycle_status
 ```
 
-The platform maps both source schemas to a shared canonical model:
+Both can be mapped to the application's canonical model:
 
 ```text
 id
@@ -168,48 +219,13 @@ amount_due         → monto
 lifecycle_status   → estado
 ```
 
-This allows the reconciliation engine to remain independent from source-specific column names.
-
----
-
-# Reconciliation Architecture
-
-```mermaid
-flowchart TD
-    ERP["ERP CSV"] --> MAP["Field Mapping"]
-    CRM["CRM CSV"] --> MAP
-
-    MAP --> PARSE["CSV Parsing"]
-    PARSE --> VALIDATE["Advanced Validation"]
-    VALIDATE --> QUALITY["Data Quality Analysis"]
-    QUALITY --> NORMALIZE["Normalization Engine"]
-    NORMALIZE --> ENGINE["Reconciliation Engine"]
-
-    ENGINE --> EXACT["Exact Match"]
-    ENGINE --> NORMALIZED["Normalized Match"]
-    ENGINE --> DIFFERENCE["Difference"]
-    ENGINE --> ERPONLY["Only ERP"]
-    ENGINE --> CRMONLY["Only CRM"]
-
-    EXACT --> DASHBOARD["Dashboard and Reports"]
-    NORMALIZED --> DASHBOARD
-
-    DIFFERENCE --> EXCEPTIONS["Exceptions Workflow"]
-    ERPONLY --> EXCEPTIONS
-    CRMONLY --> EXCEPTIONS
-
-    EXCEPTIONS --> REPORTS["Reports"]
-    DASHBOARD --> REPORTS
-
-    REPORTS --> HISTORY["Reconciliation History"]
-    HISTORY --> EXPORT["CSV and PDF Export"]
-```
+This keeps source-specific schemas separate from reconciliation logic.
 
 ---
 
 # Canonical Data Model
 
-The current reconciliation model uses four canonical fields:
+The current canonical reconciliation model contains:
 
 | Field     | Description                |
 | --------- | -------------------------- |
@@ -218,15 +234,15 @@ The current reconciliation model uses four canonical fields:
 | `monto`   | Monetary value             |
 | `estado`  | Business status            |
 
-Future versions are planned to support more advanced configurable schemas and reconciliation rules.
+Future versions are planned to support more advanced configurable schemas.
 
 ---
 
 # Advanced Validation
 
-The validation engine produces structured data quality issues.
+Validation issues use a structured model instead of plain error strings.
 
-Each issue can contain information such as:
+A Data Quality Issue can include:
 
 ```ts
 type
@@ -238,13 +254,20 @@ value
 relatedRows
 ```
 
-This allows the platform to analyze validation problems programmatically instead of relying only on plain error strings.
+This makes issues usable by:
+
+* Imports
+* Reports
+* reconciliation blocking
+* metrics
+* history
+* future backend APIs
 
 ---
 
-## Data Quality Issue Categories
+# Data Quality Issue Categories
 
-Current categories include:
+Current issue categories include:
 
 * Missing Value
 * Invalid Amount
@@ -261,47 +284,39 @@ Current categories include:
 
 # Severity System
 
-Validation issues are classified into two severity levels.
+Issues are classified as:
 
 ## BLOCKING
 
-Blocking issues prevent reconciliation from running.
+Blocking issues prevent reconciliation.
 
 Examples:
 
-* Duplicate IDs
-* Missing required values
-* Invalid amounts
-* Negative amounts
-* Missing required columns
-* Invalid status values
+* missing required values
+* invalid amounts
+* negative amounts
+* duplicate IDs
+* invalid statuses
+* missing required columns
 * CSV parsing failures
-* Empty datasets
+* empty datasets
 
 ## WARNING
 
-Warnings indicate suspicious or potentially problematic information but do not prevent reconciliation.
+Warnings indicate potentially suspicious information but allow reconciliation to continue.
 
 Examples:
 
-* Suspicious IDs
-* Unexpected columns
-
-This approach avoids rejecting potentially valid enterprise information unnecessarily.
+* suspicious identifiers
+* unexpected columns
 
 ---
 
 # Duplicate Detection
 
-Duplicate identifiers are treated as blocking issues because the reconciliation process expects each ID to uniquely identify a record.
+Duplicate IDs are considered blocking because the reconciliation identifier must uniquely identify a record.
 
 The platform reports:
-
-* The duplicated identifier
-* The number of duplicate occurrences
-* The exact rows where the duplicate appears
-
-Example:
 
 ```text
 Duplicate ID: DUP-001
@@ -310,13 +325,15 @@ Rows:
 3, 4
 ```
 
+This allows users to locate the exact source rows causing the problem.
+
 ---
 
 # Suspicious ID Detection
 
 Enterprise identifiers are not assumed to contain only numbers.
 
-Valid identifiers may include formats such as:
+Valid examples include:
 
 ```text
 CUS-10025
@@ -324,25 +341,23 @@ CR-2026-001
 ACC_0054
 ```
 
-The validation engine can flag suspicious patterns including:
+The platform can warn about:
 
-* Unusually short identifiers
-* Extremely long identifiers
-* Leading or trailing spaces
-* Internal spaces
-* Unusual characters
-* Repeated separators
-* Separators at the beginning or end
+* unusually short IDs
+* extremely long IDs
+* leading or trailing spaces
+* internal spaces
+* unusual characters
+* repeated separators
+* separators at the beginning or end
 
-Suspicious identifiers generate warnings rather than blocking errors.
+Suspicious IDs generate warnings rather than blocking errors.
 
 ---
 
 # Status Validation
 
-Business statuses are validated against an application-defined catalog.
-
-Current default values include:
+The current default status catalog includes:
 
 ```text
 Activo
@@ -350,7 +365,7 @@ Inactivo
 Pendiente
 ```
 
-Status validation uses normalization.
+Validation uses normalization.
 
 Therefore:
 
@@ -361,9 +376,9 @@ ACTIVO
  Activo
 ```
 
-are recognized as equivalent valid values.
+are recognized as equivalent valid statuses.
 
-Values such as:
+Examples such as:
 
 ```text
 Actiov
@@ -371,32 +386,25 @@ Cancelado
 Desconocido
 ```
 
-are reported as invalid statuses.
+are reported as invalid.
 
-The configuration is designed so status catalogs can become customizable in future versions.
+The status catalog is separated from validation logic so it can become configurable later.
 
 ---
 
 # Data Quality Score V2
 
-The platform includes an **application-defined Data Quality Score**.
+The platform implements an **application-defined Data Quality Score**.
 
 It is not presented as an international standard.
 
-The objective is to provide a simple, explainable, and defendable quality metric that can be understood by both technical and business stakeholders.
+The score provides an explainable internal quality indicator based on factors such as:
 
-The score begins at:
-
-```text
-100
-```
-
-and applies weighted penalties based on factors such as:
-
-* Rows containing blocking issues
-* Rows containing warnings
-* Duplicate identifiers
-* Structural validation problems
+* blocking issues
+* warnings
+* duplicate IDs
+* structural problems
+* affected rows
 
 Conceptually:
 
@@ -408,7 +416,7 @@ Score = 100
         - Structural Impact
 ```
 
-Blocking problems have significantly more impact than warnings.
+Blocking problems have significantly greater impact than warnings.
 
 The final score is constrained between:
 
@@ -418,9 +426,9 @@ The final score is constrained between:
 
 ---
 
-## Data Quality Metrics
+# Data Quality Metrics
 
-Each imported dataset includes metrics such as:
+Each imported dataset exposes:
 
 * Data Quality Score
 * Blocking Issues
@@ -431,7 +439,7 @@ Each imported dataset includes metrics such as:
 * Clean Rows
 * Rows With Issues
 
-The platform also displays an Issue Breakdown.
+An Issue Breakdown is also available.
 
 Example:
 
@@ -446,14 +454,14 @@ Unexpected Column   2
 
 # Normalization Engine
 
-Before comparing textual information, selected values are normalized.
+Textual values can be normalized before reconciliation.
 
-Current normalization includes:
+Normalization currently includes:
 
-* Trimming whitespace
-* Collapsing repeated spaces
-* Lowercase conversion
-* Removing diacritics
+* trimming whitespace
+* collapsing repeated spaces
+* lowercase conversion
+* removing diacritics
 
 For example:
 
@@ -463,7 +471,7 @@ Medical Solutions CR
 MEDICAL SOLUTIONS CR
 ```
 
-are considered equivalent after normalization.
+are treated as equivalent after normalization.
 
 Likewise:
 
@@ -472,345 +480,1039 @@ Café Central
 CAFE CENTRAL
 ```
 
-can produce a normalized match.
+can produce a **Normalized Match**.
 
 ---
 
-# Monetary Comparison
+# Configurable Reconciliation Rules
 
-Monetary values currently use strict comparison.
+V0.1.7 introduced configurable comparison rules.
 
-For example:
-
-```text
-120000
-120001
-```
-
-produces:
+Current configuration includes:
 
 ```text
-Difference
+Customer normalization
+Status normalization
+Amount tolerance
+ID matching
 ```
 
-No monetary tolerance is currently applied.
-
-Future versions may support configurable comparison tolerances.
+ID matching intentionally remains exact.
 
 ---
 
-# Reconciliation Results
+# Amount Tolerance
 
-The reconciliation engine classifies records into five main outcomes.
+Amount comparison can operate in either:
+
+```text
+Strict Mode
+```
+
+or:
+
+```text
+Absolute Tolerance
+```
+
+Example with tolerance `±5`:
+
+```text
+ERP amount: 5000
+CRM amount: 5003
+
+Difference = 3
+Tolerance  = 5
+
+→ Tolerance Match
+```
+
+But:
+
+```text
+ERP amount: 10000
+CRM amount: 10020
+
+Difference = 20
+Tolerance  = 5
+
+→ Difference
+```
+
+Tolerance Matches are successful reconciliations and do not appear as exceptions.
+
+---
+
+# Reconciliation Outcomes
+
+The engine classifies records into six outcomes.
 
 ## Exact Match
 
-All relevant values match exactly.
-
-```text
-ERP = CRM
-```
-
----
+Raw values match exactly.
 
 ## Normalized Match
 
-Values are not textually identical but become equivalent after normalization.
+Differences are only representational and disappear after normalization.
 
-Example:
+## Tolerance Match
 
-```text
-ERP: Café Central
-CRM: CAFE CENTRAL
-```
-
-Result:
-
-```text
-Normalized Match
-```
-
-Normalized matches are considered successful reconciliations and do **not** appear as exceptions.
-
----
+A configured reconciliation rule accepts a difference.
 
 ## Difference
 
-The record exists in both systems but contains meaningful discrepancies.
-
-Example:
-
-```text
-ERP amount: 120000
-CRM amount: 120001
-```
-
-Result:
-
-```text
-Difference
-```
-
----
+The record exists in both systems but contains a meaningful discrepancy.
 
 ## Only ERP
 
-The record exists in ERP but does not exist in CRM.
-
----
+The record exists only in ERP.
 
 ## Only CRM
 
-The record exists in CRM but does not exist in ERP.
-
----
-
-# Reconciliation Metrics
-
-The platform generates business-oriented reconciliation metrics including:
-
-* ERP Records
-* CRM Records
-* Unique Records
-* Matched Records
-* Exact Matches
-* Normalized Matches
-* Differences
-* Only ERP
-* Only CRM
-* Exceptions
-* Match Rate
-* Exception Rate
-* Review Completion
-* Reconciliation Health
+The record exists only in CRM.
 
 ---
 
 # Exception Management
 
-Real reconciliation discrepancies are managed through the Exceptions workflow.
-
-Exceptions include:
+Exceptions include only real reconciliation problems:
 
 * Difference
 * Only ERP
 * Only CRM
 
-Normalized Matches are intentionally excluded.
+The following are considered successful matches and are excluded:
 
-Available controls include:
+* Exact Match
+* Normalized Match
+* Tolerance Match
 
-* Search
-* Type filtering
-* Pending / Reviewed filtering
-* Individual review status
-* Mark visible records as reviewed
-* Mark visible records as pending
+Exception management supports:
 
-Review progress is shared across the application.
+* search
+* type filters
+* Pending / Reviewed states
+* individual review status
+* bulk visible review
+* bulk pending reset
 
 ---
 
-# Dashboard
+# Reconciliation Metrics
 
-The dashboard provides an executive overview of the current reconciliation.
+Current reconciliation metrics include:
 
-It displays metrics such as:
-
-* ERP record count
-* CRM record count
-* Total unique records
-* Match rate
-* Matched records
+* ERP Records
+* CRM Records
+* Unique Records
+* Matched
+* Exact Matches
+* Normalized Matches
+* Tolerance Matches
 * Differences
-* ERP-only records
-* CRM-only records
-* Exception information
-* Data quality indicators
-
-The dashboard is designed as a modern enterprise SaaS interface.
+* Only ERP
+* Only CRM
+* Exceptions
+* Match Rate
+* Exception Rate
+* Review Completion
+* Reconciliation Health
 
 ---
 
 # Reports
 
-The Reports module provides reconciliation analytics for operational and executive review.
+The Reports module provides operational and executive analytics.
 
-Current metrics include:
+Current reporting includes:
 
 * Match Rate
 * Exception Rate
 * Review Completion
 * Unique Records
-* Matched Records
+* Exact Matches
+* Normalized Matches
+* Tolerance Matches
 * Differences
 * Only ERP
 * Only CRM
 * Exceptions
-* Reconciliation Health
 * ERP Data Quality
 * CRM Data Quality
+* Reconciliation Health
+* Processing Performance
 
 ---
 
 # Charts and Analytics
 
-Visual analytics are built using **Recharts**.
+Visualizations are built with **Recharts**.
 
 Current visualizations include:
 
-* Reconciliation distribution
-* Differences by field
-* Data quality indicators
-* Match rate metrics
-* Historical match rate trends
-* Historical data quality trends
-* Exceptions by reconciliation run
-
-The objective is to make reconciliation results easier to understand than raw tables alone.
-
----
-
-# Reconciliation History
-
-Every successful reconciliation can create a historical snapshot.
-
-History captures information including:
-
-* Execution date
-* ERP dataset
-* CRM dataset
-* ERP Data Quality
-* CRM Data Quality
-* Unique Records
-* Matched Records
-* Exact Matches
-* Normalized Matches
-* Differences
-* Only ERP
-* Only CRM
-* Exceptions
-* Match Rate
-* ERP Field Mapping
-* CRM Field Mapping
-
-Historical entries are intentionally compact.
-
-The application does **not** duplicate every raw ERP and CRM record for each historical execution.
-
----
-
-# History Analytics
-
-The History module provides aggregated metrics including:
-
-* Total Runs
-* Average Match Rate
-* Best Match Rate
-* Average Data Quality
-
-Historical visualizations include:
-
-* Match Rate vs Data Quality
-* Exceptions by Run
-
-This makes it possible to evaluate reconciliation performance over time.
-
----
-
-# Field Mapping Audit
-
-Historical reconciliation records preserve the source-to-canonical field mapping used during each execution.
-
-Example:
-
-```text
-ERP
-
-customer_id     → id
-customer_name   → cliente
-balance         → monto
-status          → estado
-```
-
-This provides useful integration context when reviewing previous reconciliations.
+* reconciliation distribution
+* differences by field
+* data quality indicators
+* historical match rate
+* historical data quality
+* exceptions by run
+* tolerance matches by run
+* processing performance
 
 ---
 
 # PDF Reporting
 
-The application provides PDF exports using:
+PDF exports use:
 
 * jsPDF
 * jsPDF-AutoTable
 * html2canvas
 
-PDF reports are designed to contain:
+Reports can contain:
 
-* Executive metrics
-* Data quality metrics
-* Reconciliation results
-* Charts
-* Exceptions
-* Historical performance
-* Field mapping audit information
-* Report generation date
-* Page numbering
-* Report metadata
+* executive metrics
+* reconciliation results
+* Data Quality information
+* reconciliation rules
+* field mappings
+* processing performance
+* historical trends
+* charts
+* audit information
+* page numbers
+* report metadata
+
+Heavy PDF libraries are loaded on demand rather than during initial application startup.
 
 ---
 
 # CSV Export
 
-Reconciliation information can also be exported as CSV for additional analysis using external tools.
+Reconciliation information can also be exported to CSV for further analysis in:
+
+* Excel
+* Power BI
+* Python
+* R
+* enterprise reporting tools
 
 ---
 
-# Dark Mode
+# Reconciliation History
 
-The application includes both light and dark appearance modes.
+Every successful reconciliation creates a compact historical snapshot.
 
-The selected theme is persisted between sessions.
+History captures:
 
-The interface follows a modern enterprise SaaS visual style using:
+* execution date
+* ERP dataset
+* CRM dataset
+* dataset sizes
+* Data Quality scores
+* Unique Records
+* Matched
+* Exact Matches
+* Normalized Matches
+* Tolerance Matches
+* Differences
+* Only ERP
+* Only CRM
+* Exceptions
+* Match Rate
+* processing metrics
+* field mapping profile
+* reconciliation rule profile
 
-* Material UI
-* Neutral backgrounds
-* White or dark elevated surfaces
-* Blue accent colors
-* Responsive layouts
+Historical entries do not duplicate every raw dataset record.
+
+---
+
+# History Analytics
+
+History provides metrics such as:
+
+* Total Runs
+* Average Match Rate
+* Best Match Rate
+* Average Data Quality
+* Average Reconciliation Time
+* Average Throughput
+* Largest Run
+
+Charts include:
+
+* Match Rate vs Data Quality
+* Exceptions vs Tolerance Matches
+* Processing Performance
+
+---
+
+# Auditability
+
+Each historical reconciliation preserves important execution context.
+
+## Field Mapping Audit
+
+Example:
+
+```text
+ERP
+customer_id → id
+balance     → monto
+```
+
+## Reconciliation Rule Audit
+
+Example:
+
+```text
+Customer normalization: Enabled
+Status normalization: Enabled
+Amount comparison: Absolute tolerance ±5
+ID matching: Exact
+```
+
+This allows a historical reconciliation to explain **why records were classified as matches or differences**.
+
+---
+
+# Processing Performance
+
+V0.1.8 introduced performance instrumentation.
+
+Metrics include:
+
+* ERP Parse Time
+* CRM Parse Time
+* Validation Time
+* Import Processing Time
+* Reconciliation Time
+* Rows Processed
+* Throughput
+* Workload Tier
+
+Example:
+
+```text
+Rows Processed       50,000
+Reconciliation       14.1 ms
+Throughput           calculated at runtime
+Workload             Large
+```
+
+These are **application-observed browser metrics**, not scientific benchmark results.
+
+---
+
+# Workload Classification
+
+Datasets are classified internally as:
+
+```text
+Small
+Medium
+Large
+```
+
+Current application-defined thresholds:
+
+```text
+Small   ≤ 5,000 rows
+Medium  5,001 – 20,000 rows
+Large   > 20,000 rows
+```
+
+This classification is intended for UI guidance and processing decisions.
+
+---
+
+# Web Worker Reconciliation
+
+Large reconciliations are processed outside the main browser thread.
+
+Architecture:
+
+```text
+React UI
+   │
+   │ postMessage
+   ▼
+Web Worker
+   │
+   ├── Normalization
+   ├── Matching
+   ├── Reconciliation Rules
+   └── Processing Metrics
+   │
+   ▼
+React UI
+```
+
+This prevents large reconciliation jobs from blocking the interface.
+
+The application has been manually tested with:
+
+```text
+1,000 records
+5,000 records
+10,000 records
+25,000 ERP + 25,000 CRM records
+```
+
+The 25k + 25k scenario was used to identify and resolve main-thread processing and browser storage limitations.
+
+---
+
+# Large Dataset Safety
+
+Browser `localStorage` is intentionally not used as unlimited enterprise storage.
+
+For smaller datasets, the application can persist the complete workspace.
+
+For large datasets, the application uses a safer strategy:
+
+```text
+Large Dataset Mode
+```
+
+Large raw datasets remain in memory while compact information continues to be persisted:
+
+* reconciliation history
+* performance metrics
+* field mappings
+* reconciliation rules
+* application settings
+
+This prevents browser storage exhaustion.
 
 ---
 
 # Persistence
 
-The current frontend uses browser storage to preserve application state.
-
-Persisted information includes:
-
-* ERP dataset
-* CRM dataset
-* Validation results
-* Data Quality metrics
-* Reconciliation results
-* Exception review status
-* Reconciliation history
-* Field mapping profiles
-* Appearance preference
-
-The current development implementation uses:
+Current frontend persistence uses:
 
 ```text
 localStorage
 ```
 
-This is intentionally a **frontend development persistence layer** and is not intended to represent the final enterprise storage architecture.
+for development-stage persistence.
+
+Persisted information can include:
+
+* workspace state
+* history
+* exception review status
+* field mapping profiles
+* reconciliation rules
+* appearance settings
+* historical metrics
+
+This is intentionally temporary architecture.
+
+The final enterprise version will use server-side persistence.
 
 ---
 
-# Planned Backend Architecture
+# Dark Mode
 
-A future backend version will replace frontend-only persistence with:
+The application supports:
+
+* Light Mode
+* Dark Mode
+
+The selected preference persists between sessions.
+
+The interface follows a modern enterprise SaaS visual style using Material UI.
+
+---
+
+# Code Splitting
+
+Application pages are loaded lazily.
+
+Instead of loading all modules immediately:
+
+```text
+Application Start
+      ↓
+Core UI
+      ↓
+Requested Route
+      ↓
+Lazy-loaded Page
+```
+
+Pages include:
+
+* Dashboard
+* Imports
+* Reconciliation
+* Exceptions
+* Reports
+* History
+* Settings
+
+Heavy reporting dependencies are also deferred until required.
+
+---
+
+# Automated Testing
+
+V0.1.9 introduced a regression suite using **Vitest**.
+
+Current test status:
+
+```text
+9 test files
+43 automated tests
+43 passing
+```
+
+Test areas include:
+
+## Normalization
+
+* trimming
+* lowercase conversion
+* spaces
+* diacritics
+
+## Data Quality
+
+* blocking issues
+* warnings
+* Data Quality Score
+* suspicious IDs
+* invalid statuses
+
+## Field Mapping
+
+* canonical mappings
+* automatic suggestions
+* invalid mappings
+* duplicate mappings
+
+## Reconciliation Rules
+
+* strict comparison
+* normalized comparison
+* tolerance configuration
+* tolerance boundaries
+
+## Reconciliation Engine
+
+* Exact Match
+* Normalized Match
+* Tolerance Match
+* Difference
+* Only ERP
+* Only CRM
+* Match Rate calculations
+
+## Performance
+
+* workload classification
+* duration
+* throughput
+
+## History
+
+* snapshots
+* metrics
+* exception totals
+
+## Persistence
+
+* save
+* restore
+* clear
+* storage migration
+* Large Dataset Mode
+
+---
+
+# Regression Scenarios
+
+Important business behavior is protected with regression tests.
+
+## Strict Amount Comparison
+
+Expected result:
+
+```text
+Unique        6
+Matched       2
+Exact         1
+Normalized    1
+Tolerance     0
+Differences   2
+Only ERP      1
+Only CRM      1
+Match Rate    33.3%
+```
+
+## Amount Tolerance ±5
+
+Expected result:
+
+```text
+Unique        6
+Matched       3
+Exact         1
+Normalized    1
+Tolerance     1
+Differences   1
+Only ERP      1
+Only CRM      1
+Match Rate    50%
+```
+
+These tests prevent future changes from silently altering reconciliation behavior.
+
+---
+
+# Testing Commands
+
+Run tests in watch mode:
+
+```bash
+npm run test
+```
+
+Run the complete suite once:
+
+```bash
+npm run test:run
+```
+
+Generate coverage:
+
+```bash
+npm run test:coverage
+```
+
+Create a production build:
+
+```bash
+npm run build
+```
+
+---
+
+# Quality Gate
+
+Before important commits, the project can execute:
+
+```powershell
+.\scripts\run-quality-gate.ps1
+```
+
+The quality gate performs:
+
+```text
+Automated Tests
+      ↓
+Production Build
+      ↓
+PASS / FAIL
+```
+
+Recommended development workflow:
+
+```text
+npm run test:run
+       ↓
+npm run build
+       ↓
+git commit
+       ↓
+git push
+       ↓
+GitHub Actions
+```
+
+---
+
+# GitHub Actions CI
+
+The repository includes:
+
+```text
+.github/workflows/ci.yml
+```
+
+The workflow validates pushes and Pull Requests automatically.
+
+Pipeline:
+
+```text
+Checkout Repository
+        ↓
+Setup Node.js
+        ↓
+npm ci
+        ↓
+npm run test:run
+        ↓
+npm run build
+        ↓
+✅ Success
+```
+
+Current CI status:
+
+```text
+9 / 9 test files passing
+43 / 43 tests passing
+TypeScript build passing
+Vite production build passing
+```
+
+---
+
+# Technology Stack
+
+## Frontend
+
+* React
+* TypeScript
+* Vite
+* Material UI
+* React Router
+
+## Data Processing
+
+* PapaParse
+* Zod
+
+## Visualization
+
+* Recharts
+
+## Reporting
+
+* jsPDF
+* jsPDF-AutoTable
+* html2canvas
+
+## Performance
+
+* Web Workers
+* Lazy loading
+* Dynamic imports
+* Processing instrumentation
+
+## Testing
+
+* Vitest
+* jsdom
+* V8 Coverage
+
+## CI/CD
+
+* GitHub Actions
+
+## Persistence
+
+* localStorage
+* memory-only Large Dataset Mode
+
+## Version Control
+
+* Git
+* GitHub
+
+---
+
+# Project Structure
+
+```text
+src/
+├── components/
+│   ├── common/
+│   └── layout/
+│
+├── config/
+│   ├── dataQualityConfig.ts
+│   ├── fieldMappingConfig.ts
+│   ├── performanceConfig.ts
+│   ├── reconciliationRulesConfig.ts
+│   └── storageConfig.ts
+│
+├── context/
+│   ├── ReconciliationContext.tsx
+│   └── ThemeModeContext.tsx
+│
+├── layouts/
+│   └── MainLayout.tsx
+│
+├── pages/
+│   ├── Dashboard/
+│   ├── Imports/
+│   ├── Reconciliation/
+│   ├── Exceptions/
+│   ├── Reports/
+│   ├── History/
+│   └── Settings/
+│
+├── schemas/
+│
+├── types/
+│
+├── utils/
+│
+├── workers/
+│   └── reconciliation.worker.ts
+│
+├── App.tsx
+├── main.tsx
+├── index.css
+└── theme.ts
+
+tests/
+├── normalizeData.test.ts
+├── dataQuality.test.ts
+├── fieldMapping.test.ts
+├── reconciliationRules.test.ts
+├── reconciliationSchema.test.ts
+├── reconcileData.test.ts
+├── performanceMetrics.test.ts
+├── reconciliationHistory.test.ts
+└── workspacePersistence.test.ts
+
+scripts/
+├── generate-performance-data.mjs
+├── setup-testing.ps1
+└── run-quality-gate.ps1
+
+.github/
+└── workflows/
+    └── ci.yml
+
+sample-data/
+└── performance/
+```
+
+---
+
+# Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/Osarii/enterprise-data-reconciliation.git
+```
+
+Enter the project:
+
+```bash
+cd enterprise-data-reconciliation
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the application:
+
+```bash
+npm run dev
+```
+
+---
+
+# Production Validation
+
+Run automated tests:
+
+```bash
+npm run test:run
+```
+
+Create the production build:
+
+```bash
+npm run build
+```
+
+A healthy development state should have:
+
+```text
+Tests  ✅
+Build  ✅
+CI     ✅
+```
+
+---
+
+# Sample Data
+
+The project contains test datasets for multiple scenarios.
+
+## Advanced Validation
+
+```text
+advanced-validation-good.csv
+advanced-validation-warnings.csv
+advanced-validation-errors.csv
+```
+
+## Persistence
+
+```text
+persistence-test-erp.csv
+persistence-test-crm.csv
+```
+
+## Field Mapping
+
+```text
+field-mapping-erp.csv
+field-mapping-crm.csv
+```
+
+## Reconciliation Rules
+
+```text
+reconciliation-rules-erp.csv
+reconciliation-rules-crm.csv
+```
+
+## Performance
+
+```text
+performance-1k-erp.csv
+performance-1k-crm.csv
+
+performance-5k-erp.csv
+performance-5k-crm.csv
+
+performance-10k-erp.csv
+performance-10k-crm.csv
+
+performance-25k-erp.csv
+performance-25k-crm.csv
+```
+
+---
+
+# Development Roadmap
+
+## V0.1 — Frontend Foundation
+
+### V0.1.0 — Core Platform
+
+* CSV imports
+* basic reconciliation
+* Dashboard
+* Exceptions
+* Reports
+
+### V0.1.1 — Duplicate Detection + Data Quality
+
+* duplicate ID detection
+* header validation
+* Data Quality improvements
+
+### V0.1.2 — Normalization Engine
+
+* text normalization
+* Exact Match
+* Normalized Match
+* Difference classification
+
+### V0.1.3 — Advanced Validation
+
+* structured issues
+* severity system
+* status validation
+* suspicious IDs
+* Data Quality Score V2
+
+### V0.1.4 — Persistence + Dark Mode
+
+* frontend persistence
+* appearance settings
+* Dark Mode
+
+### V0.1.5 — Reconciliation History
+
+* historical snapshots
+* persistent history
+
+### V0.1.6 — Field Mapping + History Analytics
+
+* configurable field mapping
+* automatic mapping suggestions
+* historical charts
+* history PDF
+* mapping audit
+
+### V0.1.7 — Configurable Reconciliation Rules
+
+* customer normalization rules
+* status normalization rules
+* amount tolerance
+* Tolerance Match
+* rule audit
+
+### V0.1.8 — Performance & Scalability
+
+* lazy loading
+* code splitting
+* deferred PDF dependencies
+* processing metrics
+* workload classification
+* synthetic performance datasets
+
+### V0.1.8.1 — Large Dataset Safety
+
+* Web Worker reconciliation
+* non-blocking processing
+* Large Dataset Mode
+* browser storage safety
+* improved history navigation
+
+### V0.1.9 — Testing & Reliability
+
+* Vitest
+* 43 automated tests
+* 9 test suites
+* regression tests
+* persistence tests
+* reconciliation engine tests
+* GitHub Actions CI
+* quality gate
+
+---
+
+# Next Milestone
+
+## V0.1.10 — Frontend Release Candidate
+
+Planned focus:
+
+* UX polish
+* accessibility
+* responsive review
+* loading states
+* empty states
+* error states
+* PDF final polish
+* coverage baseline
+* README screenshots
+* portfolio screenshots
+* demo workflow
+* final frontend validation
+
+---
+
+# V0.2 — Backend
+
+Planned backend stack:
 
 ```text
 React
@@ -834,6 +1536,7 @@ Import
 ImportRow
 DataQualityIssue
 FieldMapping
+ReconciliationRule
 Reconciliation
 ReconciliationResult
 Exception
@@ -844,435 +1547,136 @@ AuditLog
 
 ---
 
-# Technology Stack
-
-## Frontend
-
-* React
-* TypeScript
-* Vite
-* Material UI
-* React Router
-
-## Data Processing
-
-* PapaParse
-* Zod
-
-## Data Visualization
-
-* Recharts
-
-## Reporting
-
-* jsPDF
-* jsPDF-AutoTable
-* html2canvas
-
-## Icons
-
-* Lucide React
-
-## Persistence
-
-* localStorage
-
-## Version Control
-
-* Git
-* GitHub
-
----
-
-# Project Structure
-
-```text
-src/
-├── components/
-│   └── layout/
-│       ├── Header.tsx
-│       └── Sidebar.tsx
-│
-├── config/
-│   ├── dataQualityConfig.ts
-│   ├── fieldMappingConfig.ts
-│   └── storageConfig.ts
-│
-├── context/
-│   ├── ReconciliationContext.tsx
-│   └── ThemeModeContext.tsx
-│
-├── layouts/
-│   └── MainLayout.tsx
-│
-├── pages/
-│   ├── Dashboard/
-│   ├── Imports/
-│   ├── Reconciliation/
-│   ├── Exceptions/
-│   ├── Reports/
-│   ├── History/
-│   └── Settings/
-│
-├── schemas/
-│   └── reconciliationSchema.ts
-│
-├── types/
-│   ├── CsvValidation.ts
-│   ├── FieldMapping.ts
-│   ├── ImportedDataset.ts
-│   ├── ReconciliationHistory.ts
-│   ├── ReconciliationRecord.ts
-│   └── ReconciliationResult.ts
-│
-├── utils/
-│   ├── dataQuality.ts
-│   ├── fieldMapping.ts
-│   ├── normalizeData.ts
-│   ├── parseCsv.ts
-│   ├── reconcileData.ts
-│   ├── reconciliationHistory.ts
-│   └── workspacePersistence.ts
-│
-├── App.tsx
-├── main.tsx
-├── index.css
-└── theme.ts
-```
-
-Additional test datasets are available under:
-
-```text
-sample-data/
-```
-
----
-
-# Installation
-
-Clone the repository:
-
-```bash
-git clone https://github.com/Osarii/enterprise-data-reconciliation.git
-```
-
-Open the project:
-
-```bash
-cd enterprise-data-reconciliation
-```
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
----
-
-# Production Build
-
-Create a production build with:
-
-```bash
-npm run build
-```
-
-The build process runs TypeScript validation before generating the Vite production bundle.
-
----
-
-# Sample Data
-
-The repository includes dedicated datasets for testing different scenarios.
-
-Examples include:
-
-```text
-advanced-validation-good.csv
-advanced-validation-warnings.csv
-advanced-validation-errors.csv
-
-persistence-test-erp.csv
-persistence-test-crm.csv
-
-field-mapping-erp.csv
-field-mapping-crm.csv
-```
-
-These datasets test:
-
-* Clean datasets
-* Warnings
-* Blocking issues
-* Duplicate detection
-* Invalid values
-* Suspicious IDs
-* Field mapping
-* Normalization
-* Differences
-* ERP-only records
-* CRM-only records
-
----
-
-# Example Workflow
-
-```text
-1. Import ERP CSV
-        ↓
-2. Configure ERP Field Mapping
-        ↓
-3. Validate ERP Dataset
-        ↓
-4. Import CRM CSV
-        ↓
-5. Configure CRM Field Mapping
-        ↓
-6. Validate CRM Dataset
-        ↓
-7. Review Data Quality
-        ↓
-8. Execute Reconciliation
-        ↓
-9. Analyze Matches and Differences
-        ↓
-10. Review Exceptions
-        ↓
-11. Analyze Reports
-        ↓
-12. Save Historical Snapshot
-        ↓
-13. Analyze Historical Metrics
-        ↓
-14. Export CSV / PDF
-```
-
----
-
-# Development Roadmap
-
-## V0.1 — Frontend Foundation
-
-### V0.1.0
-
-* CSV imports
-* Basic reconciliation
-* Dashboard
-* Exceptions
-* Reports
-
-### V0.1.1 — Duplicate Detection + Data Quality
-
-* Duplicate ID detection
-* Required header validation
-* Data quality improvements
-* Invalid row detection
-
-### V0.1.2 — Normalization Engine
-
-* Text normalization
-* Exact Match
-* Normalized Match
-* Difference classification
-* Normalized field analysis
-
-### V0.1.3 — Advanced Validation
-
-* Structured Data Quality Issues
-* Severity system
-* Suspicious ID detection
-* Status validation
-* Data Quality Score V2
-* Data quality breakdown
-
-### V0.1.4 — Persistence + Dark Mode
-
-* Workspace persistence
-* Dark mode
-* Appearance persistence
-* Settings page
-
-### V0.1.5 — Reconciliation History
-
-* Historical reconciliation snapshots
-* Persistent reconciliation history
-* History management
-
-### V0.1.6 — Field Mapping + History Analytics
-
-* Configurable field mapping
-* Automatic mapping suggestions
-* Field Mapping Audit
-* Historical metrics
-* Historical charts
-* History PDF reporting
-* Persistence improvements
-
----
-
-# Planned Frontend Improvements
-
-Before moving fully into the backend, potential frontend improvements include:
-
-* Configurable reconciliation rules
-* Configurable amount tolerances
-* Improved field mapping profiles
-* Enhanced PDF reports
-* Additional analytics
-* Performance optimization
-* Code splitting
-* Lazy-loaded pages
-* Large dataset handling
-* Improved accessibility
-* Automated testing
-* Import templates
-* Improved audit information
-* Better error recovery
-
----
-
-# V0.2 — Backend
-
-Planned stack:
-
-```text
-NestJS
-PostgreSQL
-Prisma
-```
-
-Planned capabilities include:
-
-* Persistent server-side datasets
-* Reconciliation database
-* Historical storage
-* Exception persistence
-* Configurable business rules
-* API-based reconciliation
-* Improved auditability
-* Larger dataset support
-
----
-
 # Future V1.0 Direction
 
-The long-term objective is to evolve the platform into a complete enterprise reconciliation system.
+The long-term goal is a complete enterprise reconciliation system supporting:
 
-Potential V1.0 capabilities include:
-
-* Authentication
-* Role-based access control
-* Organization workspaces
-* Persistent datasets
-* Reconciliation jobs
-* Scheduled reconciliations
-* Configurable mapping profiles
-* Configurable matching rules
-* Configurable monetary tolerances
-* Historical comparisons
-* Exception assignment
-* Audit logs
-* Advanced reporting
-* PDF and CSV exports
-* Enterprise dashboards
-* Backend persistence
-* Multi-user collaboration
-* Scalable reconciliation processing
+* authentication
+* role-based access control
+* organizations
+* persistent datasets
+* server-side reconciliation jobs
+* scheduled reconciliations
+* mapping profiles
+* reconciliation profiles
+* configurable comparison rules
+* monetary tolerances
+* historical analysis
+* exception assignment
+* review workflows
+* audit logs
+* advanced PDF reporting
+* API integrations
+* enterprise dashboards
+* multi-user collaboration
+* PostgreSQL persistence
+* scalable background processing
 
 ---
 
 # Current Limitations
 
-The project is currently under active development.
+The project is still under active development.
 
 Current limitations include:
 
-* Frontend-only persistence
-* Browser storage limitations
-* No authentication
-* No backend API
-* No multi-user collaboration
-* Fixed canonical reconciliation fields
-* Client-side reconciliation processing
-* Very large datasets are not yet optimized
-* Browser persistence is not intended for production enterprise usage
+* frontend-only business processing
+* browser persistence for small workspaces
+* large datasets are memory-only
+* no authentication
+* no backend API
+* no multi-user collaboration
+* fixed canonical reconciliation fields
+* no scheduled reconciliations
+* no external ERP/CRM integrations yet
 
-These limitations are expected to be addressed progressively throughout the roadmap.
+These limitations are intentional milestones in the development roadmap.
 
 ---
 
 # Engineering Goals
 
-This project is being developed with an emphasis on:
+The project emphasizes:
 
-* Maintainable architecture
-* Strict TypeScript
-* Clear interfaces and types
-* Separation of concerns
-* Reusable business logic
-* Enterprise-oriented UX
-* Explainable validation rules
-* Explainable Data Quality metrics
-* Realistic business workflows
-* Historical analytics
-* Data visualization
-* Executive reporting
-* Progressive migration toward a full-stack architecture
+* strict TypeScript
+* separation of concerns
+* maintainable architecture
+* reusable business logic
+* explainable reconciliation rules
+* explainable Data Quality metrics
+* enterprise-oriented UX
+* non-blocking processing
+* measurable performance
+* automated regression protection
+* auditability
+* CI validation
+* progressive full-stack architecture
 
 ---
 
 # Why This Project Exists
 
-Data reconciliation is a real operational challenge in organizations that depend on multiple systems.
+Data reconciliation is a real operational challenge.
 
-A company may have:
+An organization may have:
 
 ```text
 ERP
 CRM
 Billing
-Financial Platform
+Financial System
 Internal Database
+Data Warehouse
 ```
 
 all containing information about the same customers or transactions.
 
-Even small inconsistencies can result in:
+Small inconsistencies can create:
 
-* Incorrect financial information
-* Operational errors
-* Customer service problems
-* Reporting inconsistencies
-* Manual reconciliation work
-* Integration failures
+* financial reporting problems
+* operational errors
+* incorrect customer information
+* integration failures
+* duplicated manual work
+* compliance and audit difficulties
 
-This project explores how modern web technologies can be used to create an understandable, auditable, and extensible reconciliation workflow.
+This project explores how a modern application can transform those inconsistencies into:
+
+```text
+Detectable
+      ↓
+Measurable
+      ↓
+Explainable
+      ↓
+Reviewable
+      ↓
+Auditable
+      ↓
+Reportable
+```
 
 ---
 
 # Repository
 
-```text
+**GitHub**
+
 https://github.com/Osarii/enterprise-data-reconciliation
-```
 
 ---
 
 # Project Status
 
 ```text
-Current Version: v0.1.6
-Status: Active Development
-Architecture: Frontend-first
-Persistence: Browser-based
-Next Major Phase: Advanced frontend hardening and backend integration
+Current Version:    V0.1.9
+Status:             Active Development
+Automated Tests:    43 passing
+Test Suites:        9 passing
+CI:                 Passing
+Architecture:       Frontend-first
+Large Data:         Web Worker + Memory Safety
+Next Milestone:     V0.1.10 Frontend Release Candidate
 ```
 
 ---
@@ -1281,13 +1685,17 @@ Next Major Phase: Advanced frontend hardening and backend integration
 
 **Jared Prendas**
 
-Computer Engineering student focused on software development, enterprise applications, full-stack development, and practical technology solutions.
+Computer Engineering student focused on:
+
+* Full-Stack Development
+* Enterprise Applications
+* Software Engineering
+* Data-oriented systems
+* Practical business technology solutions
 
 GitHub:
 
-```text
 https://github.com/Osarii
-```
 
 ---
 
@@ -1295,10 +1703,10 @@ https://github.com/Osarii
 
 This project is currently developed as an educational and portfolio project.
 
-A formal open-source license may be added in a future version.
+A formal open-source license may be added in a future release.
 
 ---
 
 ## Enterprise Data Reconciliation Platform
 
-**Turning cross-system inconsistencies into measurable, reviewable, and actionable reconciliation results.**
+**Turning cross-system inconsistencies into measurable, explainable, reviewable, and actionable reconciliation results.**
