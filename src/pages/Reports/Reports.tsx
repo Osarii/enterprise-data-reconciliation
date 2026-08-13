@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import {
   Alert,
@@ -44,8 +44,6 @@ import {
   YAxis,
 } from 'recharts';
 
-import { jsPDF } from 'jspdf';
-import { autoTable } from 'jspdf-autotable';
 
 import { useReconciliation } from '../../context/ReconciliationContext';
 
@@ -55,6 +53,12 @@ import {
 
 import type { ReconciliationResult } from '../../types/ReconciliationResult';
 import type { ReconciliationRules } from '../../types/ReconciliationRules';
+
+import {
+  formatDuration,
+  formatThroughput,
+  getObservedPipelineMs,
+} from '../../utils/performanceMetrics';
 
 type ReportStatus =
   | 'Difference'
@@ -94,6 +98,9 @@ interface PdfReportOptions {
   fieldMetrics: FieldMetric[];
   healthStatus: HealthStatus;
   reconciliationRules: ReconciliationRules;
+  erpImportMs: number;
+  crmImportMs: number;
+  observedPipelineMs: number;
 }
 
 interface CsvReportOptions {
@@ -106,6 +113,9 @@ interface CsvReportOptions {
   exceptionRate: number;
   healthStatus: HealthStatus;
   reconciliationRules: ReconciliationRules;
+  erpImportMs: number;
+  crmImportMs: number;
+  observedPipelineMs: number;
 }
 
 const CHART_COLORS = {
@@ -117,6 +127,7 @@ const CHART_COLORS = {
 
 export default function Reports() {
   const navigate = useNavigate();
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const {
     erpData,
@@ -355,6 +366,15 @@ export default function Reports() {
       summary.matchRate
     );
 
+  const observedPipelineMs =
+    erpData && crmData
+      ? getObservedPipelineMs(
+          erpData,
+          crmData,
+          reconciliationResult.processing
+        )
+      : reconciliationResult.processing.durationMs;
+
   const pieData = [
     {
       name: 'Matched',
@@ -446,6 +466,9 @@ export default function Reports() {
                 healthStatus,
 
                 reconciliationRules,
+                erpImportMs: erpData?.processing.totalImportMs ?? 0,
+                crmImportMs: crmData?.processing.totalImportMs ?? 0,
+                observedPipelineMs,
               })
             }
           >
@@ -457,8 +480,11 @@ export default function Reports() {
             startIcon={
               <FileText size={18} />
             }
-            onClick={() =>
-              downloadPdfReport({
+            disabled={isExportingPdf}
+            onClick={() => {
+              setIsExportingPdf(true);
+
+              void downloadPdfReport({
                 result:
                   reconciliationResult,
 
@@ -487,10 +513,15 @@ export default function Reports() {
                 healthStatus,
 
                 reconciliationRules,
-              })
-            }
+                erpImportMs: erpData?.processing.totalImportMs ?? 0,
+                crmImportMs: crmData?.processing.totalImportMs ?? 0,
+                observedPipelineMs,
+              }).finally(() => {
+                setIsExportingPdf(false);
+              });
+            }}
           >
-            Export PDF
+            {isExportingPdf ? 'Preparing PDF…' : 'Export PDF'}
           </Button>
         </Box>
       </Box>
@@ -699,6 +730,97 @@ export default function Reports() {
               }
             />
           </Box>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent sx={{ p: '24px !important' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 2,
+              flexWrap: 'wrap',
+              mb: 2,
+            }}
+          >
+            <Box>
+              <Typography
+                sx={{
+                  color: 'text.secondary',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                Processing Performance
+              </Typography>
+
+              <Typography
+                sx={{
+                  mt: 0.5,
+                  color: 'text.secondary',
+                  fontSize: '0.76rem',
+                }}
+              >
+                Browser-observed processing metrics for the active run.
+              </Typography>
+            </Box>
+
+            <Chip
+              size="small"
+              label={`${reconciliationResult.processing.workloadTier} workload`}
+              sx={{
+                fontWeight: 700,
+                backgroundColor: 'var(--primary-soft)',
+                color: 'primary.main',
+              }}
+            />
+          </Box>
+
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: 'repeat(2, minmax(0, 1fr))',
+                lg: 'repeat(5, minmax(0, 1fr))',
+              },
+              gap: 1.25,
+            }}
+          >
+            <ReportPerformanceMetric
+              label="Rows Processed"
+              value={reconciliationResult.processing.totalRowsProcessed.toLocaleString()}
+            />
+            <ReportPerformanceMetric
+              label="ERP Import"
+              value={formatDuration(erpData?.processing.totalImportMs ?? 0)}
+            />
+            <ReportPerformanceMetric
+              label="CRM Import"
+              value={formatDuration(crmData?.processing.totalImportMs ?? 0)}
+            />
+            <ReportPerformanceMetric
+              label="Reconciliation"
+              value={formatDuration(reconciliationResult.processing.durationMs)}
+            />
+            <ReportPerformanceMetric
+              label="Throughput"
+              value={formatThroughput(reconciliationResult.processing.throughputRowsPerSecond)}
+            />
+          </Box>
+
+          <Typography
+            sx={{
+              mt: 1.5,
+              color: 'text.secondary',
+              fontSize: '0.7rem',
+            }}
+          >
+            Observed pipeline time: {formatDuration(observedPipelineMs)}. Import and reconciliation timings are application instrumentation, not a standardized benchmark.
+          </Typography>
         </CardContent>
       </Card>
 
@@ -1584,6 +1706,45 @@ export default function Reports() {
    PAGE COMPONENTS
 ========================================================= */
 
+function ReportPerformanceMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        borderRadius: '12px',
+        backgroundColor: 'var(--surface-subtle)',
+        border: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Typography
+        sx={{
+          color: 'text.secondary',
+          fontSize: '0.66rem',
+        }}
+      >
+        {label}
+      </Typography>
+
+      <Typography
+        sx={{
+          mt: 0.35,
+          fontWeight: 750,
+          fontSize: '0.9rem',
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
 function PageHeader() {
   return (
     <Box>
@@ -2453,6 +2614,9 @@ function downloadCsvReport({
   exceptionRate,
   healthStatus,
   reconciliationRules,
+  erpImportMs,
+  crmImportMs,
+  observedPipelineMs,
 }: CsvReportOptions) {
   const lines: string[] = [];
 
@@ -2498,6 +2662,16 @@ function downloadCsvReport({
       ? `Absolute tolerance ±${reconciliationRules.amountTolerance}`
       : 'Strict'
   )}`);
+
+  lines.push('');
+  lines.push('Processing Metric,Value');
+  lines.push(`ERP Import,${erpImportMs.toFixed(2)} ms`);
+  lines.push(`CRM Import,${crmImportMs.toFixed(2)} ms`);
+  lines.push(`Reconciliation,${result.processing.durationMs.toFixed(2)} ms`);
+  lines.push(`Observed Pipeline,${observedPipelineMs.toFixed(2)} ms`);
+  lines.push(`Rows Processed,${result.processing.totalRowsProcessed}`);
+  lines.push(`Throughput,${result.processing.throughputRowsPerSecond} rows/s`);
+  lines.push(`Workload Tier,${result.processing.workloadTier}`);
 
   lines.push('');
 
@@ -2671,8 +2845,22 @@ function downloadPdfReport({
   fieldMetrics,
   healthStatus,
   reconciliationRules,
+  erpImportMs,
+  crmImportMs,
+  observedPipelineMs,
 }: PdfReportOptions) {
-  const doc = new jsPDF({
+  return generatePdfReport();
+
+  async function generatePdfReport() {
+    const [jspdfModule, autoTableModule] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ]);
+
+    const { jsPDF } = jspdfModule;
+    const { autoTable } = autoTableModule;
+
+    const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
@@ -3019,6 +3207,54 @@ function downloadPdfReport({
   );
 
   y += 35;
+
+  doc.setFillColor(245, 248, 252);
+  doc.setDrawColor(225, 230, 238);
+  doc.roundedRect(
+    margin,
+    y,
+    pageWidth - margin * 2,
+    23,
+    3,
+    3,
+    'FD'
+  );
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(65, 70, 80);
+  doc.text('PROCESSING PERFORMANCE', margin + 4, y + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.2);
+  doc.setTextColor(90, 95, 105);
+
+  const processingColumns = [
+    `ERP Import: ${formatDuration(erpImportMs)}`,
+    `CRM Import: ${formatDuration(crmImportMs)}`,
+    `Reconciliation: ${formatDuration(result.processing.durationMs)}`,
+    `Throughput: ${formatThroughput(result.processing.throughputRowsPerSecond)}`,
+  ];
+
+  processingColumns.forEach((text, index) => {
+    doc.text(
+      safePdfText(text),
+      margin + 4 + index * ((pageWidth - margin * 2 - 8) / 4),
+      y + 14
+    );
+  });
+
+  doc.setFontSize(6.5);
+  doc.setTextColor(110, 115, 125);
+  doc.text(
+    safePdfText(
+      `Rows processed: ${result.processing.totalRowsProcessed.toLocaleString()} | Observed pipeline: ${formatDuration(observedPipelineMs)} | Workload: ${result.processing.workloadTier}`
+    ),
+    margin + 4,
+    y + 19
+  );
+
+  y += 31;
 
   /* BREAKDOWN */
 
@@ -3691,6 +3927,7 @@ function downloadPdfReport({
   doc.save(
     `reconciliation-report-${timestamp}.pdf`
   );
+  }
 }
 
 /* =========================================================

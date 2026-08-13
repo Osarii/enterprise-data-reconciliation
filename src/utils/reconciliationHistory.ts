@@ -15,6 +15,10 @@ import type {
   ReconciliationRules,
 } from '../types/ReconciliationRules';
 
+import {
+  getObservedPipelineMs,
+} from './performanceMetrics';
+
 export function createReconciliationHistoryEntry(
   result: ReconciliationResult,
   erpData: ImportedDataset,
@@ -35,6 +39,14 @@ export function createReconciliationHistoryEntry(
       result.summary.onlyCRM,
     reconciliationRules: {
       ...reconciliationRules,
+    },
+    processing: {
+      reconciliation: { ...result.processing },
+      observedPipelineMs: getObservedPipelineMs(
+        erpData,
+        crmData,
+        result.processing
+      ),
     },
   };
 }
@@ -109,6 +121,7 @@ function createDatasetSnapshot(
     warnings: dataset.qualitySummary.warnings,
     duplicateIds: dataset.qualitySummary.duplicateIds,
     fieldMapping: { ...dataset.fieldMapping },
+    processing: { ...dataset.processing },
   };
 }
 

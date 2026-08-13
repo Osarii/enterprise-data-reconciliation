@@ -12,6 +12,10 @@ import type {
   FieldMapping,
 } from './FieldMapping';
 
+import type {
+  DatasetProcessingMetrics,
+} from './ProcessingMetrics';
+
 export interface ImportedDataset {
   fileName: string;
   fileSize: number;
@@ -29,4 +33,5 @@ export interface ImportedDataset {
   cleanRows: number;
   rowsWithIssues: number;
   qualityScore: number;
+  processing: DatasetProcessingMetrics;
 }

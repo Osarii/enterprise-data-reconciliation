@@ -11,6 +11,11 @@ import {
   sanitizeReconciliationRules,
 } from './reconciliationRules';
 
+import {
+  createReconciliationProcessingMetrics,
+  getNowMs,
+} from './performanceMetrics';
+
 import type {
   ReconciliationRecord,
 } from '../types/ReconciliationRecord';
@@ -44,6 +49,8 @@ export function reconcileData(
   rules: ReconciliationRules =
     DEFAULT_RECONCILIATION_RULES
 ): ReconciliationResult {
+  const reconciliationStartedAt = getNowMs();
+
   const activeRules =
     sanitizeReconciliationRules(rules);
 
@@ -88,8 +95,9 @@ export function reconcileData(
     }
   );
 
-  const processedIds =
-    new Set<string>();
+  const erpIds = new Set(
+    erpRecords.map((record) => record.id)
+  );
 
   erpRecords.forEach(
     (erpRecord) => {
@@ -105,10 +113,6 @@ export function reconcileData(
 
         return;
       }
-
-      processedIds.add(
-        erpRecord.id
-      );
 
       const fieldDifferences:
         FieldDifference[] =
@@ -223,34 +227,19 @@ export function reconcileData(
     }
   );
 
-  crmRecords.forEach(
-    (crmRecord) => {
-      if (
-        !processedIds.has(
-          crmRecord.id
-        ) &&
-        !erpRecords.some(
-          (erpRecord) =>
-            erpRecord.id ===
-            crmRecord.id
-        )
-      ) {
-        onlyCRM.push(
-          crmRecord
-        );
-      }
+  /*
+   * V0.1.8 performance hardening:
+   * use a Set lookup instead of scanning ERP records for every CRM row.
+   * This keeps CRM-only detection O(n) rather than O(n × m).
+   */
+  crmRecords.forEach((crmRecord) => {
+    if (!erpIds.has(crmRecord.id)) {
+      onlyCRM.push(crmRecord);
     }
-  );
+  });
 
   const uniqueIds =
-    new Set<string>();
-
-  erpRecords.forEach(
-    (record) =>
-      uniqueIds.add(
-        record.id
-      )
-  );
+    new Set<string>(erpIds);
 
   crmRecords.forEach(
     (record) =>
@@ -289,6 +278,12 @@ export function reconcileData(
       : (matched.length /
           totalUnique) *
         100;
+
+  const processing =
+    createReconciliationProcessingMetrics(
+      getNowMs() - reconciliationStartedAt,
+      erpRecords.length + crmRecords.length
+    );
 
   return {
     matched,
@@ -331,5 +326,7 @@ export function reconcileData(
 
     executedAt:
       new Date().toISOString(),
+
+    processing,
   };
 }

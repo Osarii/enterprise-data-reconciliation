@@ -6,7 +6,7 @@
 export const WORKSPACE_STORAGE_KEY =
   'enterprise-data-reconciliation.workspace.v1';
 
-export const WORKSPACE_STORAGE_VERSION = 4 as const;
+export const WORKSPACE_STORAGE_VERSION = 6 as const;
 
 export const RECONCILIATION_HISTORY_LIMIT = 20;
 

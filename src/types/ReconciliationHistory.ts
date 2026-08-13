@@ -10,6 +10,11 @@ import type {
   ReconciliationSummary,
 } from './ReconciliationResult';
 
+import type {
+  DatasetProcessingMetrics,
+  ReconciliationProcessingMetrics,
+} from './ProcessingMetrics';
+
 export interface ReconciliationHistoryDatasetSnapshot {
   fileName: string;
   fileSize: number;
@@ -21,6 +26,7 @@ export interface ReconciliationHistoryDatasetSnapshot {
   warnings: number;
   duplicateIds: number;
   fieldMapping: FieldMapping;
+  processing: DatasetProcessingMetrics;
 }
 
 export interface ReconciliationHistoryEntry {
@@ -31,4 +37,8 @@ export interface ReconciliationHistoryEntry {
   summary: ReconciliationSummary;
   exceptionCount: number;
   reconciliationRules: ReconciliationRules;
+  processing: {
+    reconciliation: ReconciliationProcessingMetrics;
+    observedPipelineMs: number;
+  };
 }

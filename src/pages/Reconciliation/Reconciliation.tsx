@@ -6,6 +6,7 @@ import {
   CardContent,
   Chip,
   Divider,
+  LinearProgress,
   Table,
   TableBody,
   TableCell,
@@ -34,6 +35,12 @@ import {
 import {
   hasBlockingIssues,
 } from '../../utils/dataQuality';
+
+import {
+  formatDuration,
+  formatThroughput,
+  getObservedPipelineMs,
+} from '../../utils/performanceMetrics';
 
 import type {
   ComparableField,
@@ -70,6 +77,8 @@ export default function Reconciliation() {
 
     reconciliationResult,
     reconciliationRules,
+    isReconciling,
+    reconciliationError,
 
     runReconciliation,
   } =
@@ -89,10 +98,9 @@ export default function Reconciliation() {
     crmData.records.length >
       0;
 
-  const handleReconciliation =
-    () => {
-      runReconciliation();
-    };
+  const handleReconciliation = () => {
+    void runReconciliation();
+  };
 
   if (!datasetsReady) {
     return (
@@ -222,6 +230,7 @@ export default function Reconciliation() {
           onClick={
             handleReconciliation
           }
+          disabled={isReconciling}
           sx={{
             alignSelf:
               'flex-start',
@@ -231,9 +240,11 @@ export default function Reconciliation() {
             py: 1.2,
           }}
         >
-          {reconciliationResult
-            ? 'Run Again'
-            : 'Run Reconciliation'}
+          {isReconciling
+            ? 'Reconciling...'
+            : reconciliationResult
+              ? 'Run Again'
+              : 'Run Reconciliation'}
         </Button>
       </Box>
 
@@ -298,8 +309,66 @@ export default function Reconciliation() {
         Active rules: customer normalization {reconciliationRules.normalizeCustomerNames ? 'on' : 'off'}, status normalization {reconciliationRules.normalizeStatuses ? 'on' : 'off'}, amount tolerance {reconciliationRules.amountToleranceEnabled ? `±${reconciliationRules.amountTolerance}` : 'strict'}. ID matching remains exact.
       </Alert>
 
-      {!reconciliationResult ? (
-        <Card>
+      {reconciliationError && (
+        <Alert
+          severity="error"
+          sx={{ mb: 3, borderRadius: '14px' }}
+        >
+          {reconciliationError}
+        </Alert>
+      )}
+
+      {isReconciling && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent sx={{ p: '26px !important' }}>
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 2,
+                flexWrap: 'wrap',
+                mb: 1.5,
+              }}
+            >
+              <Box>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 650 }}
+                >
+                  Reconciling in background
+                </Typography>
+
+                <Typography
+                  sx={{
+                    mt: 0.5,
+                    color: 'text.secondary',
+                    fontSize: '0.84rem',
+                  }}
+                >
+                  Processing {(erpData.records.length + crmData.records.length).toLocaleString()} records in a Web Worker so the interface remains responsive.
+                </Typography>
+              </Box>
+
+              <Chip
+                size="small"
+                label="Background worker"
+                sx={{
+                  fontWeight: 650,
+                  backgroundColor: 'var(--primary-soft)',
+                  color: 'primary.main',
+                }}
+              />
+            </Box>
+
+            <LinearProgress />
+          </CardContent>
+        </Card>
+      )}
+
+      {reconciliationResult === null ? (
+        isReconciling ? null : (
+          <Card>
           <CardContent
             sx={{
               p: '30px !important',
@@ -333,7 +402,8 @@ export default function Reconciliation() {
               records.
             </Typography>
           </CardContent>
-        </Card>
+          </Card>
+        )
       ) : (
         <>
           {/* RESULT SUMMARY */}
@@ -497,6 +567,26 @@ export default function Reconciliation() {
               type="total"
             />
           </Box>
+
+          <ProcessingPerformanceCard
+            reconciliationMs={
+              reconciliationResult.processing.durationMs
+            }
+            totalRows={
+              reconciliationResult.processing.totalRowsProcessed
+            }
+            throughput={
+              reconciliationResult.processing.throughputRowsPerSecond
+            }
+            workloadTier={
+              reconciliationResult.processing.workloadTier
+            }
+            observedPipelineMs={getObservedPipelineMs(
+              erpData,
+              crmData,
+              reconciliationResult.processing
+            )}
+          />
 
           {/* MATCH ANALYSIS */}
           <Card
@@ -952,6 +1042,135 @@ export default function Reconciliation() {
           </Card>
         </>
       )}
+    </Box>
+  );
+}
+
+function ProcessingPerformanceCard({
+  reconciliationMs,
+  totalRows,
+  throughput,
+  workloadTier,
+  observedPipelineMs,
+}: {
+  reconciliationMs: number;
+  totalRows: number;
+  throughput: number;
+  workloadTier: string;
+  observedPipelineMs: number;
+}) {
+  return (
+    <Card sx={{ mb: 3 }}>
+      <CardContent sx={{ p: '22px !important' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 2,
+            flexWrap: 'wrap',
+            mb: 1.75,
+          }}
+        >
+          <Box>
+            <Typography
+              sx={{
+                fontWeight: 700,
+                fontSize: '0.9rem',
+              }}
+            >
+              Processing Performance
+            </Typography>
+
+            <Typography
+              sx={{
+                mt: 0.35,
+                color: 'text.secondary',
+                fontSize: '0.72rem',
+              }}
+            >
+              Browser-observed execution metrics for the current reconciliation pipeline.
+            </Typography>
+          </Box>
+
+          <Chip
+            size="small"
+            label={`${workloadTier} workload`}
+            sx={{
+              backgroundColor: 'var(--primary-soft)',
+              color: 'primary.main',
+              fontWeight: 700,
+            }}
+          />
+        </Box>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: 'repeat(2, minmax(0, 1fr))',
+              lg: 'repeat(4, minmax(0, 1fr))',
+            },
+            gap: 1.25,
+          }}
+        >
+          <PerformanceMetric
+            label="Rows Processed"
+            value={totalRows.toLocaleString()}
+          />
+          <PerformanceMetric
+            label="Reconciliation Time"
+            value={formatDuration(reconciliationMs)}
+          />
+          <PerformanceMetric
+            label="Throughput"
+            value={formatThroughput(throughput)}
+          />
+          <PerformanceMetric
+            label="Observed Pipeline"
+            value={formatDuration(observedPipelineMs)}
+          />
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PerformanceMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        borderRadius: '12px',
+        backgroundColor: 'var(--surface-subtle)',
+        border: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Typography
+        sx={{
+          color: 'text.secondary',
+          fontSize: '0.66rem',
+        }}
+      >
+        {label}
+      </Typography>
+
+      <Typography
+        sx={{
+          mt: 0.35,
+          fontSize: '0.92rem',
+          fontWeight: 750,
+        }}
+      >
+        {value}
+      </Typography>
     </Box>
   );
 }

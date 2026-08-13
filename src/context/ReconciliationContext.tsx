@@ -19,8 +19,8 @@ import {
 } from '../config/storageConfig';
 
 import {
-  reconcileData,
-} from '../utils/reconcileData';
+  runReconciliationInWorker,
+} from '../utils/reconciliationWorkerClient';
 
 import {
   sanitizeReconciliationRules,
@@ -51,6 +51,10 @@ import type {
   ReconciliationRules,
 } from '../types/ReconciliationRules';
 
+import type {
+  WorkspaceStorageMetrics,
+} from '../types/ProcessingMetrics';
+
 export type {
   ImportedDataset,
 } from '../types/ImportedDataset';
@@ -60,12 +64,18 @@ import {
 } from '../utils/dataQuality';
 
 import {
+  getWorkspaceStorageMetrics,
   loadWorkspace,
   saveWorkspace,
 } from '../utils/workspacePersistence';
 
+import type {
+  WorkspacePersistenceMode,
+} from '../utils/workspacePersistence';
+
 export type WorkspacePersistenceStatus =
   | 'saved'
+  | 'limited'
   | 'error';
 
 export type DatasetTarget =
@@ -84,6 +94,10 @@ interface ReconciliationContextType {
   persistenceError: string | null;
   lastSavedAt: string | null;
   restoredFromStorage: boolean;
+  storageMetrics: WorkspaceStorageMetrics;
+  persistenceMode: WorkspacePersistenceMode;
+  isReconciling: boolean;
+  reconciliationError: string | null;
 
   setErpData: (
     data: ImportedDataset | null
@@ -106,7 +120,7 @@ interface ReconciliationContextType {
 
   resetReconciliationRules: () => void;
 
-  runReconciliation: () => ReconciliationResult | null;
+  runReconciliation: () => Promise<ReconciliationResult | null>;
 
   setExceptionReviewed: (
     key: string,
@@ -147,6 +161,7 @@ function createInitialWorkspaceState(): {
   workspace: WorkspaceState;
   restored: boolean;
   savedAt: string | null;
+  persistenceMode: WorkspacePersistenceMode;
 } {
   const restoredWorkspace = loadWorkspace();
 
@@ -168,6 +183,7 @@ function createInitialWorkspaceState(): {
       },
       restored: false,
       savedAt: null,
+      persistenceMode: 'full',
     };
   }
 
@@ -193,6 +209,7 @@ function createInitialWorkspaceState(): {
     },
     restored: true,
     savedAt: restoredWorkspace.savedAt,
+    persistenceMode: restoredWorkspace.persistenceMode,
   };
 }
 
@@ -211,7 +228,11 @@ export function ReconciliationProvider({
   );
 
   const [persistenceStatus, setPersistenceStatus] =
-    useState<WorkspacePersistenceStatus>('saved');
+    useState<WorkspacePersistenceStatus>(
+      initialWorkspace.persistenceMode === 'summary-only'
+        ? 'limited'
+        : 'saved'
+    );
 
   const [persistenceError, setPersistenceError] =
     useState<string | null>(null);
@@ -219,13 +240,38 @@ export function ReconciliationProvider({
   const [lastSavedAt, setLastSavedAt] =
     useState<string | null>(initialWorkspace.savedAt);
 
+  const [storageMetrics, setStorageMetrics] =
+    useState<WorkspaceStorageMetrics>(
+      getWorkspaceStorageMetrics
+    );
+
+  const [persistenceMode, setPersistenceMode] =
+    useState<WorkspacePersistenceMode>(
+      initialWorkspace.persistenceMode
+    );
+
+  const [isReconciling, setIsReconciling] =
+    useState(false);
+
+  const [reconciliationError, setReconciliationError] =
+    useState<string | null>(null);
+
+  const reconciliationInFlightRef = useRef(false);
+
   const persistWorkspace = (
     nextWorkspace: WorkspaceState
   ) => {
     const persistenceResult = saveWorkspace(nextWorkspace);
 
+    setStorageMetrics(persistenceResult.storageMetrics);
+    setPersistenceMode(persistenceResult.mode);
+
     if (persistenceResult.success) {
-      setPersistenceStatus('saved');
+      setPersistenceStatus(
+        persistenceResult.mode === 'summary-only'
+          ? 'limited'
+          : 'saved'
+      );
       setPersistenceError(null);
       setLastSavedAt(persistenceResult.savedAt);
       return;
@@ -335,8 +381,12 @@ export function ReconciliationProvider({
     });
   };
 
-  const runReconciliation = () => {
+  const runReconciliation = async (): Promise<ReconciliationResult | null> => {
     const current = workspaceRef.current;
+
+    if (reconciliationInFlightRef.current) {
+      return null;
+    }
 
     if (!current.erpData || !current.crmData) {
       return null;
@@ -356,33 +406,67 @@ export function ReconciliationProvider({
       return null;
     }
 
-    const result = reconcileData(
-      current.erpData.records,
-      current.crmData.records,
-      current.reconciliationRules
-    );
+    reconciliationInFlightRef.current = true;
+    setIsReconciling(true);
+    setReconciliationError(null);
 
-    const historyEntry =
-      createReconciliationHistoryEntry(
-        result,
-        current.erpData,
-        current.crmData,
+    try {
+      const result = await runReconciliationInWorker(
+        current.erpData.records,
+        current.crmData.records,
         current.reconciliationRules
       );
 
-    commitWorkspace({
-      ...current,
-      reconciliationResult: result,
-      reconciliationHistory: [
-        historyEntry,
-        ...current.reconciliationHistory,
-      ].slice(0, RECONCILIATION_HISTORY_LIMIT),
-      reviewedExceptionKeys: [],
-    });
+      const latestWorkspace = workspaceRef.current;
 
-    return result;
+      /*
+       * If the user changed datasets/rules while the worker was running,
+       * do not attach a stale result to a newer workspace.
+       */
+      if (
+        latestWorkspace.erpData !== current.erpData ||
+        latestWorkspace.crmData !== current.crmData ||
+        latestWorkspace.reconciliationRules !==
+          current.reconciliationRules
+      ) {
+        setReconciliationError(
+          'The workspace changed while reconciliation was running. Run the reconciliation again using the current datasets and rules.'
+        );
+        return null;
+      }
+
+      const historyEntry =
+        createReconciliationHistoryEntry(
+          result,
+          current.erpData,
+          current.crmData,
+          current.reconciliationRules
+        );
+
+      commitWorkspace({
+        ...latestWorkspace,
+        reconciliationResult: result,
+        reconciliationHistory: [
+          historyEntry,
+          ...latestWorkspace.reconciliationHistory,
+        ].slice(0, RECONCILIATION_HISTORY_LIMIT),
+        reviewedExceptionKeys: [],
+      });
+
+      return result;
+    } catch (error: unknown) {
+      setReconciliationError(
+        error instanceof Error
+          ? error.message
+          : 'The reconciliation could not be completed.'
+      );
+
+      return null;
+    } finally {
+      reconciliationInFlightRef.current = false;
+      setIsReconciling(false);
+    }
   };
-
   const setExceptionReviewed = (
     key: string,
     reviewed: boolean
@@ -482,6 +566,10 @@ export function ReconciliationProvider({
         persistenceError,
         lastSavedAt,
         restoredFromStorage: initialWorkspace.restored,
+        storageMetrics,
+        persistenceMode,
+        isReconciling,
+        reconciliationError,
         setErpData,
         setCrmData,
         setFieldMapping,

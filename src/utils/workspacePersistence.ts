@@ -4,6 +4,13 @@ import {
 } from '../config/storageConfig';
 
 import {
+  FULL_WORKSPACE_PERSISTENCE_MAX_ROWS,
+  WORKSPACE_STORAGE_HIGH_RATIO,
+  WORKSPACE_STORAGE_REFERENCE_BYTES,
+  WORKSPACE_STORAGE_WARNING_RATIO,
+} from '../config/performanceConfig';
+
+import {
   DEFAULT_FIELD_MAPPING,
 } from '../config/fieldMappingConfig';
 
@@ -34,9 +41,25 @@ import type {
   ReconciliationRules,
 } from '../types/ReconciliationRules';
 
+import type {
+  DatasetProcessingMetrics,
+  ReconciliationProcessingMetrics,
+  WorkspaceStorageMetrics,
+} from '../types/ProcessingMetrics';
+
+import {
+  createDatasetProcessingMetrics,
+  createReconciliationProcessingMetrics,
+} from './performanceMetrics';
+
+export type WorkspacePersistenceMode =
+  | 'full'
+  | 'summary-only';
+
 export interface PersistedWorkspace {
   version: typeof WORKSPACE_STORAGE_VERSION;
   savedAt: string;
+  persistenceMode: WorkspacePersistenceMode;
   erpData: ImportedDataset | null;
   crmData: ImportedDataset | null;
   reconciliationResult: ReconciliationResult | null;
@@ -50,6 +73,8 @@ export interface WorkspacePersistenceResult {
   success: boolean;
   savedAt: string | null;
   error: string | null;
+  mode: WorkspacePersistenceMode;
+  storageMetrics: WorkspaceStorageMetrics;
 }
 
 interface WorkspaceStateToPersist {
@@ -100,6 +125,8 @@ export function saveWorkspace(
       savedAt: null,
       error:
         'Browser storage is unavailable. Workspace changes will remain only in memory.',
+      mode: 'summary-only',
+      storageMetrics: createUnavailableStorageMetrics(),
     };
   }
 
@@ -121,6 +148,8 @@ export function saveWorkspace(
         success: true,
         savedAt: null,
         error: null,
+        mode: 'full',
+        storageMetrics: createWorkspaceStorageMetrics(0),
       };
     } catch {
       return {
@@ -128,40 +157,109 @@ export function saveWorkspace(
         savedAt: null,
         error:
           'The empty workspace could not be synchronized with browser storage.',
+        mode: 'summary-only',
+        storageMetrics: getWorkspaceStorageMetrics(),
       };
     }
   }
 
   const savedAt = new Date().toISOString();
+  const combinedRows =
+    (state.erpData?.records.length ?? 0) +
+    (state.crmData?.records.length ?? 0);
 
-  const workspace: PersistedWorkspace = {
+  const preferredMode: WorkspacePersistenceMode =
+    combinedRows > FULL_WORKSPACE_PERSISTENCE_MAX_ROWS
+      ? 'summary-only'
+      : 'full';
+
+  const preferredWorkspace = createPersistedWorkspace(
+    state,
+    savedAt,
+    preferredMode
+  );
+
+  const preferredResult = writeWorkspace(preferredWorkspace);
+
+  if (preferredResult.success) {
+    return preferredResult;
+  }
+
+  /*
+   * A browser can expose a smaller localStorage quota than our
+   * application reference point. If a full save hits the quota,
+   * automatically retry with a compact snapshot instead of leaving
+   * the user with a failed auto-save state.
+   */
+  if (preferredMode === 'full') {
+    const compactWorkspace = createPersistedWorkspace(
+      state,
+      savedAt,
+      'summary-only'
+    );
+
+    const compactResult = writeWorkspace(compactWorkspace);
+
+    if (compactResult.success) {
+      return compactResult;
+    }
+  }
+
+  return preferredResult;
+}
+
+function createPersistedWorkspace(
+  state: WorkspaceStateToPersist,
+  savedAt: string,
+  mode: WorkspacePersistenceMode
+): PersistedWorkspace {
+  const persistFullWorkspace = mode === 'full';
+
+  return {
     version: WORKSPACE_STORAGE_VERSION,
     savedAt,
-    erpData: state.erpData,
-    crmData: state.crmData,
-    reconciliationResult: state.reconciliationResult,
-    reviewedExceptionKeys: state.reviewedExceptionKeys,
+    persistenceMode: mode,
+    erpData: persistFullWorkspace ? state.erpData : null,
+    crmData: persistFullWorkspace ? state.crmData : null,
+    reconciliationResult: persistFullWorkspace
+      ? state.reconciliationResult
+      : null,
+    reviewedExceptionKeys: persistFullWorkspace
+      ? state.reviewedExceptionKeys
+      : [],
     reconciliationHistory: state.reconciliationHistory,
     fieldMappings: state.fieldMappings,
     reconciliationRules: state.reconciliationRules,
   };
+}
 
+function writeWorkspace(
+  workspace: PersistedWorkspace
+): WorkspacePersistenceResult {
   try {
+    const serializedWorkspace = JSON.stringify(workspace);
+
     window.localStorage.setItem(
       WORKSPACE_STORAGE_KEY,
-      JSON.stringify(workspace)
+      serializedWorkspace
     );
 
     return {
       success: true,
-      savedAt,
+      savedAt: workspace.savedAt,
       error: null,
+      mode: workspace.persistenceMode,
+      storageMetrics: createWorkspaceStorageMetrics(
+        getTextByteLength(serializedWorkspace)
+      ),
     };
   } catch (error: unknown) {
     return {
       success: false,
       savedAt: null,
       error: getPersistenceErrorMessage(error),
+      mode: workspace.persistenceMode,
+      storageMetrics: getWorkspaceStorageMetrics(),
     };
   }
 }
@@ -190,6 +288,8 @@ function normalizeWorkspace(
     value.version !== 1 &&
     value.version !== 2 &&
     value.version !== 3 &&
+    value.version !== 4 &&
+    value.version !== 5 &&
     value.version !== WORKSPACE_STORAGE_VERSION
   ) {
     return null;
@@ -250,7 +350,7 @@ function normalizeWorkspace(
   }
 
   const reconciliationRules =
-    value.version === WORKSPACE_STORAGE_VERSION
+    value.version >= 4
       ? normalizeReconciliationRules(value.reconciliationRules)
       : { ...DEFAULT_RECONCILIATION_RULES };
 
@@ -258,9 +358,15 @@ function normalizeWorkspace(
     return null;
   }
 
+  const persistenceMode: WorkspacePersistenceMode =
+    value.version >= 6 && value.persistenceMode === 'summary-only'
+      ? 'summary-only'
+      : 'full';
+
   return {
     version: WORKSPACE_STORAGE_VERSION,
     savedAt: value.savedAt,
+    persistenceMode,
     erpData,
     crmData,
     reconciliationResult,
@@ -328,6 +434,10 @@ function normalizeImportedDataset(
     cleanRows: value.cleanRows,
     rowsWithIssues: value.rowsWithIssues,
     qualityScore: value.qualityScore,
+    processing: normalizeDatasetProcessingMetrics(
+      value.processing,
+      value.totalRows
+    ),
   };
 }
 
@@ -373,6 +483,10 @@ function normalizeReconciliationResult(
     onlyCRM: value.onlyCRM as ReconciliationResult['onlyCRM'],
     summary,
     executedAt: value.executedAt,
+    processing: normalizeReconciliationProcessingMetrics(
+      value.processing,
+      summary.totalERP + summary.totalCRM
+    ),
   };
 }
 
@@ -432,6 +546,10 @@ function normalizeHistoryEntry(
     summary,
     exceptionCount: value.exceptionCount,
     reconciliationRules,
+    processing: normalizeHistoryProcessing(
+      value.processing,
+      summary.totalERP + summary.totalCRM
+    ),
   };
 }
 
@@ -470,6 +588,10 @@ function normalizeHistoryDatasetSnapshot(
       normalizeFieldMapping(value.fieldMapping) ?? {
         ...DEFAULT_FIELD_MAPPING,
       },
+    processing: normalizeDatasetProcessingMetrics(
+      value.processing,
+      value.totalRows
+    ),
   };
 }
 
@@ -676,6 +798,163 @@ function areReconciliationRulesDefault(
     rules.amountTolerance ===
       DEFAULT_RECONCILIATION_RULES.amountTolerance
   );
+}
+
+export function getWorkspaceStorageMetrics(): WorkspaceStorageMetrics {
+  if (!canUseLocalStorage()) {
+    return createUnavailableStorageMetrics();
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(
+      WORKSPACE_STORAGE_KEY
+    );
+
+    return createWorkspaceStorageMetrics(
+      rawValue ? getTextByteLength(rawValue) : 0
+    );
+  } catch {
+    return createUnavailableStorageMetrics();
+  }
+}
+
+function normalizeDatasetProcessingMetrics(
+  value: unknown,
+  rowsProcessed: number
+): DatasetProcessingMetrics {
+  if (
+    isObject(value) &&
+    typeof value.csvParseMs === 'number' &&
+    typeof value.validationMs === 'number' &&
+    typeof value.totalImportMs === 'number' &&
+    typeof value.rowsProcessed === 'number' &&
+    typeof value.rowsPerSecond === 'number' &&
+    (value.workloadTier === 'Small' ||
+      value.workloadTier === 'Medium' ||
+      value.workloadTier === 'Large')
+  ) {
+    return {
+      csvParseMs: value.csvParseMs,
+      validationMs: value.validationMs,
+      totalImportMs: value.totalImportMs,
+      rowsProcessed: value.rowsProcessed,
+      rowsPerSecond: value.rowsPerSecond,
+      workloadTier: value.workloadTier,
+    };
+  }
+
+  return createDatasetProcessingMetrics(
+    0,
+    0,
+    rowsProcessed
+  );
+}
+
+function normalizeReconciliationProcessingMetrics(
+  value: unknown,
+  totalRowsProcessed: number
+): ReconciliationProcessingMetrics {
+  if (
+    isObject(value) &&
+    typeof value.durationMs === 'number' &&
+    typeof value.totalRowsProcessed === 'number' &&
+    typeof value.throughputRowsPerSecond === 'number' &&
+    (value.workloadTier === 'Small' ||
+      value.workloadTier === 'Medium' ||
+      value.workloadTier === 'Large')
+  ) {
+    return {
+      durationMs: value.durationMs,
+      totalRowsProcessed: value.totalRowsProcessed,
+      throughputRowsPerSecond: value.throughputRowsPerSecond,
+      workloadTier: value.workloadTier,
+    };
+  }
+
+  return createReconciliationProcessingMetrics(
+    0,
+    totalRowsProcessed
+  );
+}
+
+function normalizeHistoryProcessing(
+  value: unknown,
+  totalRowsProcessed: number
+): ReconciliationHistoryEntry['processing'] {
+  if (isObject(value)) {
+    const reconciliation =
+      normalizeReconciliationProcessingMetrics(
+        value.reconciliation,
+        totalRowsProcessed
+      );
+
+    return {
+      reconciliation,
+      observedPipelineMs:
+        typeof value.observedPipelineMs === 'number' &&
+        Number.isFinite(value.observedPipelineMs) &&
+        value.observedPipelineMs >= 0
+          ? value.observedPipelineMs
+          : reconciliation.durationMs,
+    };
+  }
+
+  const reconciliation =
+    createReconciliationProcessingMetrics(
+      0,
+      totalRowsProcessed
+    );
+
+  return {
+    reconciliation,
+    observedPipelineMs: reconciliation.durationMs,
+  };
+}
+
+function createWorkspaceStorageMetrics(
+  usedBytes: number
+): WorkspaceStorageMetrics {
+  const safeUsedBytes = Math.max(0, usedBytes);
+  const ratio =
+    WORKSPACE_STORAGE_REFERENCE_BYTES === 0
+      ? 0
+      : safeUsedBytes / WORKSPACE_STORAGE_REFERENCE_BYTES;
+
+  const status: WorkspaceStorageMetrics['status'] =
+    ratio >= WORKSPACE_STORAGE_HIGH_RATIO
+      ? 'High'
+      : ratio >= WORKSPACE_STORAGE_WARNING_RATIO
+        ? 'Approaching Limit'
+        : 'Normal';
+
+  return {
+    usedBytes: safeUsedBytes,
+    usedMegabytes:
+      Math.round((safeUsedBytes / (1024 * 1024)) * 100) /
+      100,
+    referenceLimitBytes: WORKSPACE_STORAGE_REFERENCE_BYTES,
+    percentOfReferenceLimit:
+      Math.round(ratio * 1000) / 10,
+    status,
+  };
+}
+
+function createUnavailableStorageMetrics(): WorkspaceStorageMetrics {
+  return {
+    usedBytes: 0,
+    usedMegabytes: 0,
+    referenceLimitBytes: WORKSPACE_STORAGE_REFERENCE_BYTES,
+    percentOfReferenceLimit: 0,
+    status: 'Unavailable',
+  };
+}
+
+function getTextByteLength(value: string): number {
+  if (typeof TextEncoder !== 'undefined') {
+    return new TextEncoder().encode(value).byteLength;
+  }
+
+  return value.length * 2;
 }
 
 function isStringArray(value: unknown): value is string[] {

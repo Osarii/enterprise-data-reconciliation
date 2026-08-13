@@ -1,5 +1,6 @@
 import {
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -46,8 +47,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { jsPDF } from 'jspdf';
-import { autoTable } from 'jspdf-autotable';
+import type { jsPDF } from 'jspdf';
 
 import {
   CANONICAL_FIELDS,
@@ -76,12 +76,23 @@ import {
   getHistoryEntryAverageQuality,
 } from '../../utils/reconciliationHistory';
 
+import {
+  calculateAverageHistoryProcessingTime,
+  calculateAverageHistoryThroughput,
+  formatDuration,
+  formatThroughput,
+  getLargestHistoryRunRows,
+} from '../../utils/performanceMetrics';
+
 interface HistoryChartRow {
   label: string;
   matchRate: number;
   dataQuality: number;
   exceptions: number;
   toleranceMatches: number;
+  reconciliationMs: number;
+  rowsProcessed: number;
+  throughput: number;
 }
 
 export default function History() {
@@ -90,6 +101,10 @@ export default function History() {
     deleteHistoryEntry,
     clearHistory,
   } = useReconciliation();
+
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const detailSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedEntryId, setSelectedEntryId] =
     useState<string | null>(
@@ -121,6 +136,21 @@ export default function History() {
       reconciliationHistory
     );
 
+  const averageProcessingTime =
+    calculateAverageHistoryProcessingTime(
+      reconciliationHistory
+    );
+
+  const averageThroughput =
+    calculateAverageHistoryThroughput(
+      reconciliationHistory
+    );
+
+  const largestRunRows =
+    getLargestHistoryRunRows(
+      reconciliationHistory
+    );
+
   const chartData = useMemo<HistoryChartRow[]>(
     () =>
       [...reconciliationHistory]
@@ -133,9 +163,27 @@ export default function History() {
           ),
           exceptions: entry.exceptionCount,
           toleranceMatches: entry.summary.toleranceMatched,
+          reconciliationMs: roundOne(
+            entry.processing.reconciliation.durationMs
+          ),
+          rowsProcessed:
+            entry.processing.reconciliation.totalRowsProcessed,
+          throughput:
+            entry.processing.reconciliation.throughputRowsPerSecond,
         })),
     [reconciliationHistory]
   );
+
+  const handleViewEntry = (entryId: string) => {
+    setSelectedEntryId(entryId);
+
+    window.requestAnimationFrame(() => {
+      detailSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
 
   const handleDeleteEntry = (
     entry: ReconciliationHistoryEntry
@@ -171,15 +219,22 @@ export default function History() {
   };
 
   const handleExportPdf = () => {
-    if (reconciliationHistory.length === 0) {
+    if (reconciliationHistory.length === 0 || isExportingPdf) {
       return;
     }
 
-    exportHistoryPdf({
+    setIsExportingPdf(true);
+
+    void exportHistoryPdf({
       history: reconciliationHistory,
       averageMatchRate,
       bestMatchRate,
       averageQuality,
+      averageProcessingTime,
+      averageThroughput,
+      largestRunRows,
+    }).finally(() => {
+      setIsExportingPdf(false);
     });
   };
 
@@ -224,10 +279,12 @@ export default function History() {
           <Button
             variant="contained"
             startIcon={<Download size={17} />}
-            disabled={reconciliationHistory.length === 0}
+            disabled={
+              reconciliationHistory.length === 0 || isExportingPdf
+            }
             onClick={handleExportPdf}
           >
-            Export PDF
+            {isExportingPdf ? 'Preparing PDF…' : 'Export PDF'}
           </Button>
 
           <Button
@@ -250,7 +307,7 @@ export default function History() {
           borderRadius: '14px',
         }}
       >
-        V0.1.7 keeps compact browser snapshots for the latest {RECONCILIATION_HISTORY_LIMIT} runs. Historical metrics, charts, field-mapping metadata and reconciliation-rule profiles can be exported to PDF.
+        V0.1.8 keeps compact browser snapshots for the latest {RECONCILIATION_HISTORY_LIMIT} runs. Historical metrics, processing performance, charts, field-mapping metadata and reconciliation-rule profiles can be exported to PDF.
       </Alert>
 
       <Box
@@ -290,6 +347,40 @@ export default function History() {
           label="Average Data Quality"
           value={`${averageQuality.toFixed(1)}%`}
           detail="Average ERP and CRM quality"
+          icon={<Database size={18} />}
+        />
+      </Box>
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, minmax(0, 1fr))',
+            xl: 'repeat(3, minmax(0, 1fr))',
+          },
+          gap: 1.5,
+          mb: 2.5,
+        }}
+      >
+        <MetricCard
+          label="Avg. Reconciliation Time"
+          value={formatDuration(averageProcessingTime)}
+          detail="Browser-observed engine duration"
+          icon={<BarChart3 size={18} />}
+        />
+
+        <MetricCard
+          label="Average Throughput"
+          value={formatThroughput(averageThroughput)}
+          detail="Average rows processed per second"
+          icon={<Sparkles size={18} />}
+        />
+
+        <MetricCard
+          label="Largest Run"
+          value={largestRunRows.toLocaleString()}
+          detail="ERP + CRM rows processed"
           icon={<Database size={18} />}
         />
       </Box>
@@ -336,13 +427,14 @@ export default function History() {
               </Box>
 
               <Box sx={{ overflowX: 'auto' }}>
-                <Table sx={{ minWidth: 1020 }}>
+                <Table sx={{ minWidth: 1120 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Executed</TableCell>
                       <TableCell>ERP Dataset</TableCell>
                       <TableCell>CRM Dataset</TableCell>
                       <TableCell>Match Rate</TableCell>
+                      <TableCell>Time</TableCell>
                       <TableCell>Matched</TableCell>
                       <TableCell>Exceptions</TableCell>
                       <TableCell>Avg. Quality</TableCell>
@@ -402,6 +494,19 @@ export default function History() {
                           </TableCell>
 
                           <TableCell>
+                            <Typography
+                              sx={{
+                                fontWeight: 650,
+                                fontSize: '0.78rem',
+                              }}
+                            >
+                              {formatDuration(
+                                entry.processing.reconciliation.durationMs
+                              )}
+                            </Typography>
+                          </TableCell>
+
+                          <TableCell>
                             {entry.summary.matched}
                           </TableCell>
 
@@ -447,7 +552,7 @@ export default function History() {
                                 }
                                 startIcon={<Eye size={15} />}
                                 onClick={() =>
-                                  setSelectedEntryId(entry.id)
+                                  handleViewEntry(entry.id)
                                 }
                               >
                                 View
@@ -479,7 +584,12 @@ export default function History() {
           </Card>
 
           {selectedEntry && (
-            <HistoryDetail entry={selectedEntry} />
+            <Box
+              ref={detailSectionRef}
+              sx={{ scrollMarginTop: 96 }}
+            >
+              <HistoryDetail entry={selectedEntry} />
+            </Box>
           )}
         </>
       )}
@@ -621,6 +731,78 @@ function HistoryCharts({
                 <Bar
                   dataKey="toleranceMatches"
                   name="Tolerance Matches"
+                  fill="#0071E3"
+                  radius={[6, 6, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
+        </CardContent>
+      </Card>
+
+      <Card
+        sx={{
+          gridColumn: {
+            xs: 'auto',
+            xl: '1 / -1',
+          },
+        }}
+      >
+        <CardContent sx={{ p: '24px !important' }}>
+          <Typography
+            sx={{
+              fontWeight: 700,
+              fontSize: '0.95rem',
+            }}
+          >
+            Processing Performance
+          </Typography>
+
+          <Typography
+            sx={{
+              mt: 0.4,
+              mb: 2,
+              color: 'text.secondary',
+              fontSize: '0.74rem',
+            }}
+          >
+            Reconciliation engine duration by historical run. Hover a bar to compare rows processed and throughput.
+          </Typography>
+
+          <Box sx={{ width: '100%', height: 250 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--border-subtle)"
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11 }}
+                  stroke="var(--neutral-fg)"
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  stroke="var(--neutral-fg)"
+                  tickFormatter={(value: number) => `${value} ms`}
+                />
+                <Tooltip
+                  formatter={(value) =>
+                    `${Number(value ?? 0).toFixed(2)} ms`
+                  }
+                  labelFormatter={(label) => {
+                    const row = data.find((item) => item.label === label);
+
+                    if (!row) {
+                      return String(label);
+                    }
+
+                    return `${label} · ${row.rowsProcessed.toLocaleString()} rows · ${formatThroughput(row.throughput)}`;
+                  }}
+                />
+                <Bar
+                  dataKey="reconciliationMs"
+                  name="Reconciliation Time"
                   fill="#0071E3"
                   radius={[6, 6, 0, 0]}
                 />
@@ -923,6 +1105,50 @@ function HistoryDetail({
           }}
         >
           <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
+            Processing Snapshot
+          </Typography>
+
+          <Box
+            sx={{
+              mt: 1.25,
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: 'repeat(2, minmax(0, 1fr))',
+                md: 'repeat(4, minmax(0, 1fr))',
+              },
+              gap: 1.25,
+            }}
+          >
+            <SmallMetric
+              label="Rows Processed"
+              value={entry.processing.reconciliation.totalRowsProcessed.toLocaleString()}
+            />
+            <SmallMetric
+              label="Reconciliation"
+              value={formatDuration(entry.processing.reconciliation.durationMs)}
+            />
+            <SmallMetric
+              label="Throughput"
+              value={formatThroughput(entry.processing.reconciliation.throughputRowsPerSecond)}
+            />
+            <SmallMetric
+              label="Observed Pipeline"
+              value={formatDuration(entry.processing.observedPipelineMs)}
+            />
+          </Box>
+        </Box>
+
+        <Box
+          sx={{
+            mt: 2,
+            p: 2,
+            borderRadius: '14px',
+            backgroundColor: 'var(--surface-subtle)',
+            border: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
             Reconciliation Rule Profile
           </Typography>
 
@@ -1000,7 +1226,7 @@ function DatasetSnapshotCard({
         sx={{
           mt: 1.5,
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
           gap: 1,
         }}
       >
@@ -1015,6 +1241,10 @@ function DatasetSnapshotCard({
         <SmallMetric
           label="Warnings"
           value={String(dataset.warnings)}
+        />
+        <SmallMetric
+          label="Import"
+          value={formatDuration(dataset.processing.totalImportMs)}
         />
       </Box>
 
@@ -1147,15 +1377,29 @@ interface ExportHistoryPdfOptions {
   averageMatchRate: number;
   bestMatchRate: number;
   averageQuality: number;
+  averageProcessingTime: number;
+  averageThroughput: number;
+  largestRunRows: number;
 }
 
-function exportHistoryPdf({
+async function exportHistoryPdf({
   history,
   averageMatchRate,
   bestMatchRate,
   averageQuality,
-}: ExportHistoryPdfOptions) {
-  const doc = new jsPDF({
+  averageProcessingTime,
+  averageThroughput,
+  largestRunRows,
+}: ExportHistoryPdfOptions): Promise<void> {
+  const [jspdfModule, autoTableModule] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
+
+  const { jsPDF: JsPDFConstructor } = jspdfModule;
+  const { autoTable } = autoTableModule;
+
+  const doc = new JsPDFConstructor({
     orientation: 'landscape',
     unit: 'mm',
     format: 'a4',
@@ -1267,6 +1511,7 @@ function exportHistoryPdf({
       'ERP Dataset',
       'CRM Dataset',
       'Match Rate',
+      'Time',
       'Matched',
       'Tolerance',
       'Exceptions',
@@ -1277,6 +1522,7 @@ function exportHistoryPdf({
       entry.erpDataset.fileName,
       entry.crmDataset.fileName,
       `${entry.summary.matchRate.toFixed(1)}%`,
+      formatDuration(entry.processing.reconciliation.durationMs),
       String(entry.summary.matched),
       String(entry.summary.toleranceMatched),
       String(entry.exceptionCount),
@@ -1300,47 +1546,76 @@ function exportHistoryPdf({
       fillColor: [248, 248, 250],
     },
     columnStyles: {
-      0: { cellWidth: 34 },
-      1: { cellWidth: 49 },
-      2: { cellWidth: 49 },
-      3: { cellWidth: 23, halign: 'center' },
-      4: { cellWidth: 18, halign: 'center' },
-      5: { cellWidth: 18, halign: 'center' },
-      6: { cellWidth: 20, halign: 'center' },
-      7: { cellWidth: 28, halign: 'center' },
+      0: { cellWidth: 32 },
+      1: { cellWidth: 45 },
+      2: { cellWidth: 45 },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 22, halign: 'center' },
+      5: { cellWidth: 17, halign: 'center' },
+      6: { cellWidth: 17, halign: 'center' },
+      7: { cellWidth: 19, halign: 'center' },
+      8: { cellWidth: 26, halign: 'center' },
     },
   });
 
-  const firstTableEndY = getAutoTableFinalY(doc);
-  const pageHeight = doc.internal.pageSize.getHeight();
-  let mappingStartY = firstTableEndY + 9;
+  // V0.1.8 uses page 2 as a dedicated processing and audit page.
+  doc.addPage();
+  drawPdfContinuationHeader(doc, 'Processing & Integration Audit');
 
-  if (mappingStartY > pageHeight - 37) {
-    doc.addPage();
-    drawPdfContinuationHeader(doc, 'Integration & Rule Audit');
-    mappingStartY = 27;
-  } else {
-    drawPdfSectionTitle(
-      doc,
-      'Integration & Rule Audit',
-      'Field mapping and reconciliation rules captured with every run',
-      margin,
-      mappingStartY
-    );
-    mappingStartY += 7;
-  }
+  drawPdfSectionTitle(
+    doc,
+    'Processing Performance',
+    'Application-instrumented browser timings; not a standardized benchmark',
+    margin,
+    28
+  );
 
-  if (mappingStartY === 27) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(95, 95, 102);
-    doc.text(
-      'Source-to-canonical field mapping and reconciliation rules captured with every reconciliation snapshot.',
-      margin,
-      32
-    );
-    mappingStartY = 37;
-  }
+  drawPdfMetric(
+    doc,
+    margin,
+    35,
+    82,
+    'AVG. RECONCILIATION TIME',
+    formatDuration(averageProcessingTime),
+    'Across retained history'
+  );
+  drawPdfMetric(
+    doc,
+    margin + 88,
+    35,
+    82,
+    'AVERAGE THROUGHPUT',
+    formatThroughput(averageThroughput),
+    'Rows processed per second'
+  );
+  drawPdfMetric(
+    doc,
+    margin + 176,
+    35,
+    93,
+    'LARGEST RUN',
+    largestRunRows.toLocaleString(),
+    'ERP + CRM rows processed'
+  );
+
+  drawPdfProcessingChart(
+    doc,
+    history,
+    margin,
+    58,
+    contentWidth,
+    38
+  );
+
+  drawPdfSectionTitle(
+    doc,
+    'Integration & Rule Audit',
+    'Source-to-canonical mappings and active rule profiles captured with each run',
+    margin,
+    105
+  );
+
+  const mappingStartY = 112;
 
   autoTable(doc, {
     startY: mappingStartY,
@@ -1975,9 +2250,9 @@ function drawPdfExceptionChart(
   doc.text('Operational exceptions compared with rule-accepted amount matches', x + 5, y + 10.5);
 
   const chartX = x + 6;
-  const chartY = y + 15;
+  const chartY = y + 18;
   const chartWidth = width - 12;
-  const chartHeight = height - 22;
+  const chartHeight = height - 25;
   const slotWidth = chartWidth / chronological.length;
   const barWidth = Math.max(1.2, Math.min(3.2, slotWidth * 0.28));
 
@@ -2037,7 +2312,7 @@ function drawPdfExceptionChart(
   drawPdfLegendDot(
     doc,
     x + width - 58,
-    y + 5.2,
+    y + 13.2,
     [229, 138, 34],
     'Exceptions'
   );
@@ -2045,9 +2320,100 @@ function drawPdfExceptionChart(
   drawPdfLegendDot(
     doc,
     x + width - 28,
-    y + 5.2,
+    y + 13.2,
     [0, 113, 227],
     'Tolerance'
+  );
+}
+
+function drawPdfProcessingChart(
+  doc: jsPDF,
+  history: ReconciliationHistoryEntry[],
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  const chronological = [...history].reverse();
+  const maxDuration = Math.max(
+    1,
+    ...chronological.map(
+      (entry) => entry.processing.reconciliation.durationMs
+    )
+  );
+
+  doc.setFillColor(252, 252, 253);
+  doc.setDrawColor(228, 228, 233);
+  doc.roundedRect(x, y, width, height, 2.8, 2.8, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.3);
+  doc.setTextColor(25, 25, 29);
+  doc.text('Reconciliation Time by Run', x + 5, y + 6.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.8);
+  doc.setTextColor(115, 115, 122);
+  doc.text(
+    'Oldest to newest; bar height represents browser-observed engine duration',
+    x + 5,
+    y + 10.5
+  );
+
+  const chartX = x + 8;
+  const chartY = y + 15;
+  const chartWidth = width - 16;
+  const chartHeight = height - 22;
+  const slotWidth = chartWidth / Math.max(chronological.length, 1);
+  const barWidth = Math.max(2.2, Math.min(10, slotWidth * 0.55));
+
+  doc.setDrawColor(236, 236, 240);
+  doc.line(
+    chartX,
+    chartY + chartHeight,
+    chartX + chartWidth,
+    chartY + chartHeight
+  );
+
+  chronological.forEach((entry, index) => {
+    const duration = entry.processing.reconciliation.durationMs;
+    const barHeight = (duration / maxDuration) * chartHeight;
+    const centerX = chartX + slotWidth * index + slotWidth / 2;
+
+    doc.setFillColor(0, 113, 227);
+    doc.roundedRect(
+      centerX - barWidth / 2,
+      chartY + chartHeight - Math.max(1, barHeight),
+      barWidth,
+      Math.max(1, barHeight),
+      0.8,
+      0.8,
+      'F'
+    );
+
+    if (
+      chronological.length <= 10 ||
+      index === 0 ||
+      index === chronological.length - 1
+    ) {
+      doc.setFontSize(4.8);
+      doc.setTextColor(135, 135, 142);
+      doc.text(
+        String(index + 1),
+        centerX,
+        y + height - 2,
+        { align: 'center' }
+      );
+    }
+  });
+
+  doc.setFontSize(5.2);
+  doc.setTextColor(95, 95, 102);
+  doc.text(
+    `Peak ${formatDuration(maxDuration)}`,
+    x + width - 5,
+    y + 6.5,
+    { align: 'right' }
   );
 }
 
@@ -2202,16 +2568,6 @@ function addPdfFooters(doc: jsPDF) {
       { align: 'right' }
     );
   }
-}
-
-function getAutoTableFinalY(doc: jsPDF): number {
-  const documentWithAutoTable = doc as jsPDF & {
-    lastAutoTable?: {
-      finalY?: number;
-    };
-  };
-
-  return documentWithAutoTable.lastAutoTable?.finalY ?? 148;
 }
 
 function formatMappingForPdf(mapping: FieldMapping): string {

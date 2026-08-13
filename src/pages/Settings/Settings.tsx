@@ -8,6 +8,7 @@ import {
   Chip,
   Divider,
   FormControlLabel,
+  LinearProgress,
   Stack,
   Switch,
   TextField,
@@ -53,6 +54,8 @@ export default function Settings() {
     persistenceError,
     lastSavedAt,
     restoredFromStorage,
+    storageMetrics,
+    persistenceMode,
     clearData,
     clearHistory,
     resetFieldMappings,
@@ -140,7 +143,7 @@ export default function Settings() {
             fontSize: '0.86rem',
           }}
         >
-          Manage appearance, field-mapping profiles, browser persistence and reconciliation history.
+          Manage appearance, field-mapping profiles, reconciliation rules, performance-aware browser persistence and history.
         </Typography>
       </Box>
 
@@ -473,22 +476,32 @@ export default function Settings() {
 
               <Chip
                 size="small"
-                icon={<CheckCircle2 size={14} />}
+                icon={
+                  persistenceStatus === 'saved'
+                    ? <CheckCircle2 size={14} />
+                    : <HardDrive size={14} />
+                }
                 label={
                   persistenceStatus === 'saved'
-                    ? 'Auto-save active'
-                    : 'Persistence issue'
+                    ? 'Full auto-save'
+                    : persistenceStatus === 'limited'
+                      ? 'Large Dataset Mode'
+                      : 'Persistence issue'
                 }
                 sx={{
                   fontWeight: 650,
                   backgroundColor:
                     persistenceStatus === 'saved'
                       ? 'var(--success-soft)'
-                      : 'var(--danger-soft)',
+                      : persistenceStatus === 'limited'
+                        ? 'var(--primary-soft)'
+                        : 'var(--danger-soft)',
                   color:
                     persistenceStatus === 'saved'
                       ? 'var(--success-fg)'
-                      : 'var(--danger-fg)',
+                      : persistenceStatus === 'limited'
+                        ? 'primary.main'
+                        : 'var(--danger-fg)',
                   '& .MuiChip-icon': {
                     color: 'inherit',
                   },
@@ -504,7 +517,7 @@ export default function Settings() {
                 gridTemplateColumns: {
                   xs: '1fr',
                   sm: 'repeat(2, minmax(0, 1fr))',
-                  xl: 'repeat(5, minmax(0, 1fr))',
+                  xl: 'repeat(7, minmax(0, 1fr))',
                 },
                 gap: 1.5,
               }}
@@ -542,6 +555,113 @@ export default function Settings() {
                 value={formatSavedAt(lastSavedAt)}
                 icon={<CheckCircle2 size={17} />}
               />
+
+              <PersistenceMetric
+                label="Persistence Mode"
+                value={
+                  persistenceMode === 'full'
+                    ? 'Full workspace'
+                    : 'History + config'
+                }
+                icon={<HardDrive size={17} />}
+              />
+
+              <PersistenceMetric
+                label="Storage Used"
+                value={`${storageMetrics.usedMegabytes.toFixed(2)} MB`}
+                icon={<HardDrive size={17} />}
+              />
+            </Box>
+
+            <Box
+              sx={{
+                mt: 2.5,
+                p: 2,
+                borderRadius: '14px',
+                backgroundColor: 'var(--surface-subtle)',
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 2,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Box>
+                  <Typography
+                    sx={{
+                      fontWeight: 650,
+                      fontSize: '0.82rem',
+                    }}
+                  >
+                    Workspace storage awareness
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      mt: 0.4,
+                      color: 'text.secondary',
+                      fontSize: '0.72rem',
+                    }}
+                  >
+                    {storageMetrics.usedMegabytes.toFixed(2)} MB stored · {storageMetrics.percentOfReferenceLimit.toFixed(1)}% of the app-defined 5 MiB reference point
+                  </Typography>
+                </Box>
+
+                <Chip
+                  size="small"
+                  label={storageMetrics.status}
+                  sx={{
+                    fontWeight: 700,
+                    backgroundColor:
+                      storageMetrics.status === 'High'
+                        ? 'var(--danger-soft)'
+                        : storageMetrics.status === 'Approaching Limit'
+                          ? 'var(--warning-soft)'
+                          : storageMetrics.status === 'Unavailable'
+                            ? 'var(--surface-muted)'
+                            : 'var(--success-soft)',
+                    color:
+                      storageMetrics.status === 'High'
+                        ? 'var(--danger-fg)'
+                        : storageMetrics.status === 'Approaching Limit'
+                          ? 'var(--warning-fg)'
+                          : storageMetrics.status === 'Unavailable'
+                            ? 'text.secondary'
+                            : 'var(--success-fg)',
+                  }}
+                />
+              </Box>
+
+              <LinearProgress
+                variant="determinate"
+                value={Math.min(storageMetrics.percentOfReferenceLimit, 100)}
+                sx={{
+                  mt: 1.5,
+                  height: 7,
+                  borderRadius: '999px',
+                  backgroundColor: 'var(--surface-strong)',
+                  '& .MuiLinearProgress-bar': {
+                    borderRadius: '999px',
+                  },
+                }}
+              />
+
+              <Typography
+                sx={{
+                  mt: 1,
+                  color: 'text.secondary',
+                  fontSize: '0.7rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                Browser quotas vary, so this is not a detected browser limit. V0.1.8 uses a conservative reference only to warn when the frontend workspace is becoming large.
+              </Typography>
             </Box>
 
             <Box
@@ -571,8 +691,22 @@ export default function Settings() {
                   lineHeight: 1.55,
                 }}
               >
-                V0.1.7 persists the active workspace, reusable field-mapping profiles, reconciliation rules and compact historical reconciliation snapshots with browser localStorage. Historical entries keep summary-level metrics and mapping metadata rather than duplicating every raw record. Audit-grade persistence will move to PostgreSQL in V0.2.
+                V0.1.8.1 uses full localStorage persistence for small and medium workspaces. When the combined ERP + CRM workload exceeds the application-defined threshold, Large Dataset Mode keeps raw records and the latest result in memory while persisting compact history, field mappings and reconciliation rules. This avoids synchronous storage stalls and quota failures. Audit-grade persistence will move to PostgreSQL in V0.2.
               </Typography>
+
+              {persistenceStatus === 'limited' && (
+                <Typography
+                  sx={{
+                    mt: 1,
+                    color: 'primary.main',
+                    fontSize: '0.76rem',
+                    fontWeight: 650,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Large Dataset Mode is active: current raw datasets are memory-only and will be lost on refresh, while history and configuration continue to be saved.
+                </Typography>
+              )}
 
               {restoredFromStorage && (
                 <Typography

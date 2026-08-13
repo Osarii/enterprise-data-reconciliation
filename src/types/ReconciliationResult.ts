@@ -2,6 +2,10 @@ import type {
   ReconciliationRecord,
 } from './ReconciliationRecord';
 
+import type {
+  ReconciliationProcessingMetrics,
+} from './ProcessingMetrics';
+
 export type ComparableField =
   | 'cliente'
   | 'monto'
@@ -111,4 +115,6 @@ export interface ReconciliationResult {
     ReconciliationSummary;
 
   executedAt: string;
+
+  processing: ReconciliationProcessingMetrics;
 }

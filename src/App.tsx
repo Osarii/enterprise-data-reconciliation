@@ -1,60 +1,56 @@
 import {
+  lazy,
+} from 'react';
+
+import {
   Route,
   Routes,
 } from 'react-router-dom';
 
 import MainLayout from './layouts/MainLayout';
 
-import Dashboard from './pages/Dashboard/Dashboard';
-import Imports from './pages/Imports/Imports';
-import Reconciliation from './pages/Reconciliation/Reconciliation';
-import Exceptions from './pages/Exceptions/Exceptions';
-import Reports from './pages/Reports/Reports';
-import History from './pages/History/History';
-import Settings from './pages/Settings/Settings';
+const Dashboard = lazy(
+  () => import('./pages/Dashboard/Dashboard')
+);
+
+const Imports = lazy(
+  () => import('./pages/Imports/Imports')
+);
+
+const Reconciliation = lazy(
+  () => import('./pages/Reconciliation/Reconciliation')
+);
+
+const Exceptions = lazy(
+  () => import('./pages/Exceptions/Exceptions')
+);
+
+const Reports = lazy(
+  () => import('./pages/Reports/Reports')
+);
+
+const History = lazy(
+  () => import('./pages/History/History')
+);
+
+const Settings = lazy(
+  () => import('./pages/Settings/Settings')
+);
 
 function App() {
   return (
     <Routes>
-      <Route
-        element={<MainLayout />}
-      >
-        <Route
-          index
-          element={<Dashboard />}
-        />
-
-        <Route
-          path="/imports"
-          element={<Imports />}
-        />
-
+      <Route element={<MainLayout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="/imports" element={<Imports />} />
         <Route
           path="/reconciliation"
-          element={
-            <Reconciliation />
-          }
+          element={<Reconciliation />}
         />
-
-        <Route
-          path="/exceptions"
-          element={<Exceptions />}
-        />
-
-        <Route
-          path="/reports"
-          element={<Reports />}
-        />
-
-        <Route
-          path="/history"
-          element={<History />}
-        />
-
-        <Route
-          path="/settings"
-          element={<Settings />}
-        />
+        <Route path="/exceptions" element={<Exceptions />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
     </Routes>
   );

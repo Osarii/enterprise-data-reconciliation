@@ -54,6 +54,11 @@ import {
 } from '../../utils/dataQuality';
 
 import {
+  formatDuration,
+  formatThroughput,
+} from '../../utils/performanceMetrics';
+
+import {
   inspectCsvHeaders,
   validateFieldMapping,
 } from '../../utils/fieldMapping';
@@ -144,6 +149,7 @@ export default function Imports() {
         cleanRows: result.cleanRows,
         rowsWithIssues: result.rowsWithIssues,
         qualityScore: result.qualityScore,
+        processing: result.processing,
       };
 
       setFieldMapping(target, result.fieldMapping);
@@ -363,7 +369,7 @@ export default function Imports() {
           borderRadius: '14px',
         }}
       >
-        V0.1.6 uses a canonical reconciliation schema: <strong>id, cliente, monto, estado</strong>. Your source CSV columns can now use different names and be mapped before validation.
+        V0.1.8 keeps the canonical reconciliation schema: <strong>id, cliente, monto, estado</strong>. Your source CSV columns can now use different names and be mapped before validation.
       </Alert>
 
       <Box
@@ -698,6 +704,7 @@ function ImportCard({
 
             <AppliedMappingCard dataset={dataset} />
             <DataQualityPanel dataset={dataset} />
+            <ImportPerformancePanel dataset={dataset} />
 
             {dataset.duplicateIds.length > 0 && (
               <DuplicatePanel dataset={dataset} />
@@ -984,6 +991,136 @@ function AppliedMappingCard({
           </Box>
         ))}
       </Box>
+    </Box>
+  );
+}
+
+
+function ImportPerformancePanel({
+  dataset,
+}: {
+  dataset: ImportedDataset;
+}) {
+  return (
+    <Box
+      sx={{
+        mt: 2.5,
+        p: 2.2,
+        borderRadius: '14px',
+        backgroundColor: 'var(--surface-subtle)',
+        border: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          flexWrap: 'wrap',
+          mb: 1.5,
+        }}
+      >
+        <Box>
+          <Typography
+            sx={{
+              fontSize: '0.76rem',
+              fontWeight: 700,
+            }}
+          >
+            Import Processing
+          </Typography>
+
+          <Typography
+            sx={{
+              mt: 0.35,
+              color: 'text.secondary',
+              fontSize: '0.68rem',
+            }}
+          >
+            Browser-observed parsing and validation timing for this import.
+          </Typography>
+        </Box>
+
+        <Chip
+          size="small"
+          label={`${dataset.processing.workloadTier} workload`}
+          sx={{
+            fontWeight: 650,
+            backgroundColor: 'var(--primary-soft)',
+            color: 'primary.main',
+          }}
+        />
+      </Box>
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: 'repeat(2, minmax(0, 1fr))',
+            md: 'repeat(4, minmax(0, 1fr))',
+          },
+          gap: 1.25,
+        }}
+      >
+        <ProcessingMetric
+          label="CSV Parse"
+          value={formatDuration(dataset.processing.csvParseMs)}
+        />
+        <ProcessingMetric
+          label="Validation"
+          value={formatDuration(dataset.processing.validationMs)}
+        />
+        <ProcessingMetric
+          label="Total Import"
+          value={formatDuration(dataset.processing.totalImportMs)}
+        />
+        <ProcessingMetric
+          label="Throughput"
+          value={formatThroughput(dataset.processing.rowsPerSecond)}
+        />
+      </Box>
+
+      {dataset.processing.workloadTier === 'Large' && (
+        <Alert
+          severity="info"
+          sx={{ mt: 1.75, borderRadius: '12px' }}
+        >
+          Large frontend workload detected. Processing remains client-side, while browser persistence may become constrained as workspace size grows.
+        </Alert>
+      )}
+    </Box>
+  );
+}
+
+function ProcessingMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <Box>
+      <Typography
+        sx={{
+          color: 'text.secondary',
+          fontSize: '0.65rem',
+        }}
+      >
+        {label}
+      </Typography>
+
+      <Typography
+        sx={{
+          mt: 0.3,
+          fontWeight: 700,
+          fontSize: '0.8rem',
+        }}
+      >
+        {value}
+      </Typography>
     </Box>
   );
 }

@@ -19,6 +19,10 @@ import type {
   FieldMapping,
 } from '../types/FieldMapping';
 
+import type {
+  DatasetProcessingMetrics,
+} from '../types/ProcessingMetrics';
+
 import {
   DEFAULT_FIELD_MAPPING,
 } from '../config/fieldMappingConfig';
@@ -36,6 +40,11 @@ import {
   normalizeHeaderName,
   validateFieldMapping,
 } from './fieldMapping';
+
+import {
+  createDatasetProcessingMetrics,
+  getNowMs,
+} from './performanceMetrics';
 
 export interface CsvParseResult {
   success: boolean;
@@ -72,6 +81,7 @@ export interface CsvParseResult {
   /** Rows with at least one blocking or warning row-level issue. */
   rowsWithIssues: number;
   qualityScore: number;
+  processing: DatasetProcessingMetrics;
 }
 
 type RawCsvRow = Record<string, string>;
@@ -86,6 +96,8 @@ export function parseCsv(
   file: File,
   fieldMapping: FieldMapping = DEFAULT_FIELD_MAPPING
 ): Promise<CsvParseResult> {
+  const parseStartedAt = getNowMs();
+
   return new Promise((resolve, reject) => {
     Papa.parse<RawCsvRow>(file, {
       header: true,
@@ -93,6 +105,7 @@ export function parseCsv(
       transformHeader: normalizeHeaderName,
 
       complete: (results) => {
+        const validationStartedAt = getNowMs();
         const records: ReconciliationRecord[] = [];
         const issues: DataQualityIssue[] = [];
         const duplicateIds: DuplicateIdInfo[] = [];
@@ -378,6 +391,13 @@ export function parseCsv(
         const success =
           !hasBlockingIssues(issues) && totalRows > 0;
 
+        const completedAt = getNowMs();
+        const processing = createDatasetProcessingMetrics(
+          validationStartedAt - parseStartedAt,
+          completedAt - validationStartedAt,
+          totalRows
+        );
+
         resolve({
           success,
           headers,
@@ -394,6 +414,7 @@ export function parseCsv(
           cleanRows: qualitySummary.cleanRows,
           rowsWithIssues: qualitySummary.rowsWithIssues,
           qualityScore: qualitySummary.score,
+          processing,
         });
       },
 
