@@ -7,3 +7,126 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum SourceSystem {
+  ERP
+  CRM
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum IssueSeverity {
+  BLOCKING
+  WARNING
+}
+
+enum DataQualityIssueType {
+  MISSING_VALUE
+  INVALID_AMOUNT
+  NEGATIVE_AMOUNT
+  DUPLICATE_ID
+  INVALID_STATUS
+  SUSPICIOUS_ID
+  UNEXPECTED_COLUMN
+  MISSING_COLUMN
+  CSV_PARSE_ERROR
+  EMPTY_FILE
+}
+
+model Dataset {
+  id           String       @id @default(cuid())
+  name         String
+  sourceSystem SourceSystem
+  description  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  imports Import[]
+
+  @@index([sourceSystem])
+}
+
+model Import {
+  id            String       @id @default(cuid())
+  datasetId     String
+  fileName      String
+  fileSizeBytes Int?
+  status        ImportStatus @default(PENDING)
+
+  totalRows      Int @default(0)
+  cleanRows      Int @default(0)
+  rowsWithIssues Int @default(0)
+
+  dataQualityScore Float @default(100)
+  blockingIssues   Int   @default(0)
+  warnings         Int   @default(0)
+  duplicateIds     Int   @default(0)
+  invalidValues    Int   @default(0)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  dataset Dataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  rows   ImportRow[]
+  issues DataQualityIssue[]
+
+  @@index([datasetId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ImportRow {
+  id        String @id @default(cuid())
+  importId  String
+  rowNumber Int
+
+  recordId String?
+  cliente  String?
+  monto    Decimal? @db.Decimal(18, 2)
+  estado   String?
+
+  rawData Json
+
+  createdAt DateTime @default(now())
+
+  import Import @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  issues DataQualityIssue[]
+
+  @@unique([importId, rowNumber])
+  @@index([importId])
+  @@index([recordId])
+}
+
+model DataQualityIssue {
+  id          String  @id @default(cuid())
+  importId    String
+  importRowId String?
+
+  type     DataQualityIssueType
+  severity IssueSeverity
+
+  message     String
+  rowNumber   Int?
+  field       String?
+  value       String?
+  relatedRows Int[]   @default([])
+
+  createdAt DateTime @default(now())
+
+  import    Import     @relation(fields: [importId], references: [id], onDelete: Cascade)
+  importRow ImportRow? @relation(fields: [importRowId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+  @@index([importRowId])
+  @@index([severity])
+  @@index([type])
+}
