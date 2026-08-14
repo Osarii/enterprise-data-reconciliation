@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  quality-gate:
-    name: TypeScript Build & Vitest
+  frontend-quality-gate:
+    name: Frontend - TypeScript Build & Vitest
     runs-on: ubuntu-latest
 
     steps:
@@ -23,12 +23,48 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: npm ci
 
-      - name: Run regression tests
+      - name: Run frontend regression tests
         run: npm run test:run
 
-      - name: Build production bundle
+      - name: Build frontend production bundle
+        run: npm run build
+
+  backend-quality-gate:
+    name: Backend - NestJS, Jest & Prisma
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/enterprise_reconciliation
+      PORT: 3000
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run backend unit tests
+        run: npm run test
+
+      - name: Build NestJS backend
         run: npm run build
