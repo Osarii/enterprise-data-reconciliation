@@ -9,76 +9,44 @@ import {
 } from '@mui/material';
 
 import {
-  LayoutDashboard,
-  Upload,
-  GitCompareArrows,
-  TriangleAlert,
   ChartNoAxesCombined,
-  History,
-  Settings,
   Database,
+  GitCompareArrows,
+  History,
+  LayoutDashboard,
+  Settings,
+  TriangleAlert,
+  Upload,
+  type LucideIcon,
 } from 'lucide-react';
 
 import { NavLink } from 'react-router-dom';
 
+import {
+  NAVIGATION_ITEMS,
+  type NavigationIconKey,
+} from '../../config/navigationConfig';
+
 const drawerWidth = 250;
 
-const menuItems = [
-  {
-    label: 'Dashboard',
-    path: '/',
-    icon: LayoutDashboard,
-  },
-  {
-    label: 'Imports',
-    path: '/imports',
-    icon: Upload,
-  },
-  {
-    label: 'Reconciliation',
-    path: '/reconciliation',
-    icon: GitCompareArrows,
-  },
-  {
-    label: 'Exceptions',
-    path: '/exceptions',
-    icon: TriangleAlert,
-  },
-  {
-    label: 'Reports',
-    path: '/reports',
-    icon: ChartNoAxesCombined,
-  },
-  {
-    label: 'History',
-    path: '/history',
-    icon: History,
-  },
-  {
-    label: 'Settings',
-    path: '/settings',
-    icon: Settings,
-  },
-];
+const iconMap: Record<NavigationIconKey, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  imports: Upload,
+  reconciliation: GitCompareArrows,
+  exceptions: TriangleAlert,
+  reports: ChartNoAxesCombined,
+  history: History,
+  settings: Settings,
+};
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <Drawer
-      variant="permanent"
-      sx={{
-        width: drawerWidth,
-        flexShrink: 0,
-
-        '& .MuiDrawer-paper': {
-          width: drawerWidth,
-          boxSizing: 'border-box',
-          borderRight: '1px solid',
-          borderColor: 'divider',
-          backgroundColor: 'background.paper',
-          padding: '20px 14px',
-        },
-      }}
-    >
+    <>
       <Box
         sx={{
           display: 'flex',
@@ -98,12 +66,14 @@ export default function Sidebar() {
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
+            flexShrink: 0,
           }}
+          aria-hidden="true"
         >
           <Database size={20} />
         </Box>
 
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
           <Typography
             sx={{
               fontSize: '0.95rem',
@@ -139,14 +109,16 @@ export default function Sidebar() {
       </Typography>
 
       <List
+        component="nav"
+        aria-label="Workspace navigation"
         sx={{
           display: 'flex',
           flexDirection: 'column',
           gap: 0.5,
         }}
       >
-        {menuItems.map((item) => {
-          const Icon = item.icon;
+        {NAVIGATION_ITEMS.map((item) => {
+          const Icon = iconMap[item.iconKey];
 
           return (
             <ListItemButton
@@ -154,6 +126,7 @@ export default function Sidebar() {
               component={NavLink}
               to={item.path}
               end={item.path === '/'}
+              onClick={onNavigate}
               sx={{
                 borderRadius: '12px',
                 minHeight: 44,
@@ -185,11 +158,20 @@ export default function Sidebar() {
 
               <ListItemText
                 primary={item.label}
+                secondary={item.description}
                 slotProps={{
                   primary: {
                     sx: {
                       fontSize: '0.88rem',
                       fontWeight: 500,
+                    },
+                  },
+                  secondary: {
+                    sx: {
+                      display: { xs: 'block', md: 'none' },
+                      mt: 0.25,
+                      fontSize: '0.72rem',
+                      lineHeight: 1.35,
                     },
                   },
                 }}
@@ -198,6 +180,52 @@ export default function Sidebar() {
           );
         })}
       </List>
-    </Drawer>
+    </>
+  );
+}
+
+export default function Sidebar({
+  mobileOpen,
+  onMobileClose,
+}: SidebarProps) {
+  const paperSx = {
+    width: drawerWidth,
+    boxSizing: 'border-box',
+    borderRight: '1px solid',
+    borderColor: 'divider',
+    backgroundColor: 'background.paper',
+    padding: '20px 14px',
+  } as const;
+
+  return (
+    <Box
+      component="aside"
+      aria-label="Primary workspace navigation"
+      sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+    >
+      <Drawer
+        variant="temporary"
+        open={mobileOpen}
+        onClose={onMobileClose}
+        ModalProps={{ keepMounted: true }}
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          '& .MuiDrawer-paper': paperSx,
+        }}
+      >
+        <SidebarContent onNavigate={onMobileClose} />
+      </Drawer>
+
+      <Drawer
+        variant="permanent"
+        open
+        sx={{
+          display: { xs: 'none', md: 'block' },
+          '& .MuiDrawer-paper': paperSx,
+        }}
+      >
+        <SidebarContent />
+      </Drawer>
+    </Box>
   );
 }

@@ -108,6 +108,21 @@ export function createAppTheme(mode: PaletteMode) {
         },
       },
 
+      MuiButtonBase: {
+        styleOverrides: {
+          root: {
+            '&.Mui-focusVisible': {
+              outline: `3px solid ${
+                isDark
+                  ? 'rgba(100,168,255,0.55)'
+                  : 'rgba(0,113,227,0.30)'
+              }`,
+              outlineOffset: 2,
+            },
+          },
+        },
+      },
+
       MuiTableCell: {
         styleOverrides: {
           root: {
